@@ -30,12 +30,39 @@ export interface User {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
+  role?: 'admin' | 'user';
+}
+
+export interface InvoiceItem {
+  description: string;
+  quantity: number;
+  rate: number;
+  amount: number;
+  type: 'TIME' | 'EXPENSE';
+  originalLogId?: string; // Reference to original log
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string; // T-{CLIENT}-{YYMM}-{SEQ}
+  clientId: string;
+  date: string;
+  dueDate: string;
+  terms: string;
+  items: InvoiceItem[];
+  subtotal: number;
+  tax: number;
+  total: number;
+  status: 'DRAFT' | 'SENT' | 'PAID';
+  createdAt: number;
 }
 
 export interface AppState {
   user: User | null;
+  users: User[];
   projects: Project[];
   logs: LogItem[];
+  invoices: Invoice[]; // New
   isDemoMode: boolean;
   isLoading: boolean;
 }

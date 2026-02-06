@@ -3,13 +3,14 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
     SquaresFour,
     Timer,
-    Files,
-    Users,
+    CreditCard,
+    Invoice,
     Gear,
     SignOut,
-    Sparkle
+    UserSquare
 } from '@phosphor-icons/react';
 import { useApp } from '../context/AppContext';
+import { COMPANY_CONFIG } from '../config/company';
 
 const SidebarItem = ({ to, icon: Icon, label }: { to: string, icon: React.ElementType, label: string }) => (
     <NavLink
@@ -41,20 +42,20 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <aside className="w-64 bg-slate-900 text-white flex flex-col p-6 shadow-2xl">
                 <div className="flex items-center gap-3 mb-12">
                     <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center">
-                        <span className="text-slate-900 font-bold text-xl">T</span>
+                        <span className="text-slate-900 font-bold text-xl">{COMPANY_CONFIG.logoInitials}</span>
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold tracking-tight">Tribute</h1>
-                        <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-sans">Creative Studio</p>
+                        <h1 className="text-xl font-bold tracking-tight">{COMPANY_CONFIG.name}</h1>
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-sans">Accounting</p>
                     </div>
                 </div>
 
                 <nav className="flex-1 space-y-2">
                     <SidebarItem to="/dashboard" icon={SquaresFour} label="Dashboard" />
                     <SidebarItem to="/tracker" icon={Timer} label="Tracker" />
-                    <SidebarItem to="/ai-statement" icon={Sparkle} label="Statement AI" />
-                    <SidebarItem to="/invoices" icon={Files} label="Invoices" />
-                    <SidebarItem to="/projects" icon={Users} label="Projects" />
+                    <SidebarItem to="/statements" icon={CreditCard} label="CC Statements" />
+                    <SidebarItem to="/invoices" icon={Invoice} label="Invoices" />
+                    <SidebarItem to="/projects" icon={UserSquare} label="Guests" />
                 </nav>
 
                 <div className="pt-6 border-t border-white/5 space-y-2">

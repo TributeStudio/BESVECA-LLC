@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useNavigate } from 'react-router-dom';
 import { Sparkle, ArrowRight, GoogleLogo } from '@phosphor-icons/react';
@@ -6,12 +6,22 @@ import { Sparkle, ArrowRight, GoogleLogo } from '@phosphor-icons/react';
 const Login: React.FC = () => {
     const { signInWithGoogle, enterDemoMode, user, isDemoMode } = useApp();
     const navigate = useNavigate();
+    const [isAuthLoading, setIsAuthLoading] = useState(false);
 
     React.useEffect(() => {
         if (user || isDemoMode) {
             navigate('/dashboard');
         }
     }, [user, isDemoMode, navigate]);
+
+    const handleGoogleSignIn = async () => {
+        setIsAuthLoading(true);
+        try {
+            await signInWithGoogle();
+        } finally {
+            setIsAuthLoading(false);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 relative overflow-hidden">
@@ -31,11 +41,16 @@ const Login: React.FC = () => {
 
                 <div className="bg-slate-900/50 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-2xl">
                     <button
-                        onClick={signInWithGoogle}
-                        className="w-full bg-white text-slate-950 px-6 py-4 rounded-xl font-semibold flex items-center justify-center gap-3 hover:bg-slate-100 transition-all duration-300 mb-4 shadow-xl"
+                        onClick={handleGoogleSignIn}
+                        disabled={isAuthLoading}
+                        className="w-full bg-white text-slate-950 px-6 py-4 rounded-xl font-semibold flex items-center justify-center gap-3 hover:bg-slate-100 transition-all duration-300 mb-4 shadow-xl disabled:opacity-50"
                     >
-                        <GoogleLogo size={24} weight="bold" className="text-slate-900" />
-                        Sign in with Google
+                        {isAuthLoading ? (
+                            <div className="w-6 h-6 border-2 border-slate-900/20 border-t-slate-900 rounded-full animate-spin" />
+                        ) : (
+                            <GoogleLogo size={24} weight="bold" className="text-slate-900" />
+                        )}
+                        {isAuthLoading ? 'Connecting...' : 'Sign in with Google'}
                     </button>
 
                     <div className="relative my-8 text-center">

@@ -56,12 +56,14 @@ const Tracker: React.FC = () => {
                 await addLog(logData);
             }
 
+            // Important: Set loading to false BEFORE setting success
+            // to avoid state flickering or overlap
+            setIsLoading(false);
             setSuccess(true);
-            setTimeout(() => setSuccess(false), 3000);
             resetForm();
+            setTimeout(() => setSuccess(false), 3000);
         } catch (error) {
             console.error(error);
-        } finally {
             setIsLoading(false);
         }
     };
@@ -75,7 +77,9 @@ const Tracker: React.FC = () => {
             cost: '',
             markupPercent: '20',
         });
-        setEditingLogId(null);
+        if (!editingLogId) {
+            // only scroll if not editing
+        }
     };
 
     const handleEdit = (log: LogItem) => {
@@ -172,7 +176,7 @@ const Tracker: React.FC = () => {
                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Description</label>
                             <input
                                 type="text"
-                                placeholder="What did you work on?"
+                                placeholder={activeTab === 'TIME' ? "What did you work on?" : "What did you purchase?"}
                                 required
                                 value={formData.description}
                                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}

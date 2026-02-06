@@ -4,7 +4,7 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Tracker from './pages/Tracker';
-import StatementAI from './pages/StatementAI';
+import Statements from './pages/Statements';
 import Invoices from './pages/Invoices';
 import Projects from './pages/Projects';
 import Settings from './pages/Settings';
@@ -30,7 +30,7 @@ function App() {
         <Route path="/" element={<Login />} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/tracker" element={<ProtectedRoute><Tracker /></ProtectedRoute>} />
-        <Route path="/ai-statement" element={<ProtectedRoute><StatementAI /></ProtectedRoute>} />
+        <Route path="/statements" element={<ProtectedRoute><Statements /></ProtectedRoute>} />
         <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
         <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
