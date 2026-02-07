@@ -492,7 +492,9 @@ const Invoices: React.FC = () => {
                                 <div className="flex justify-between items-start mb-8 border-b border-slate-200 pb-8">
                                     <div>
                                         <div className="flex items-center gap-3 mb-4">
-                                            <div className="w-8 h-8 bg-black text-white rounded-md flex items-center justify-center font-bold text-lg">{COMPANY_CONFIG.logoInitials}</div>
+                                            <div className="w-8 h-8 flex items-center justify-center">
+                                                <img src="/besveca-logo.svg" alt="BESVECA" className="w-full h-full object-contain" />
+                                            </div>
                                             <span className="font-bold text-lg tracking-tight">{COMPANY_CONFIG.name}</span>
                                         </div>
                                         <div className="text-[11px] text-slate-500 leading-relaxed font-medium">

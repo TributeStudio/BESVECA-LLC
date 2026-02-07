@@ -1,0 +1,13 @@
+<svg viewBox="0 0 100 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Top Left: Pink Quarter Cylinder/Rounded Corner -->
+  <path d="M50 0 L50 100 L0 100 L0 50 A50 50 0 0 1 50 0Z" fill="#EAB8B8" />
+  
+  <!-- Bottom Left: Dark Blue Rectangle -->
+  <rect x="0" y="100" width="50" height="100" fill="#1F4E5F" />
+  
+  <!-- Top Right: Teal Semi-Circle -->
+  <path d="M50 0 A50 50 0 0 1 50 100 L50 0Z" fill="#7FB0B0" />
+  
+  <!-- Bottom Right: Yellow Semi-Circle -->
+  <path d="M50 100 A50 50 0 0 1 50 200 L50 100Z" fill="#E8D888" />
+</svg>
