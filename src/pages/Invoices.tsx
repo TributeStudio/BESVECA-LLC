@@ -215,7 +215,7 @@ const Invoices: React.FC = () => {
                     {/* Filter Controls (Existing) */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 print:hidden">
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Client</label>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Guests</label>
                             <select
                                 className="w-full bg-slate-50 border-none rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-slate-900"
                                 value={selectedClientId}
@@ -224,7 +224,7 @@ const Invoices: React.FC = () => {
                                     setSelectedProjectId('ALL');
                                 }}
                             >
-                                <option value="">Select Client...</option>
+                                <option value="">Select Guest...</option>
                                 {clients.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                         </div>
@@ -320,8 +320,8 @@ const Invoices: React.FC = () => {
                     {!selectedClientId ? (
                         <div className="bg-slate-100/50 border-2 border-dashed border-slate-200 rounded-3xl p-20 text-center">
                             <FileText size={48} weight="duotone" className="mx-auto text-slate-300 mb-4" />
-                            <h2 className="text-xl font-bold text-slate-400">No Client Selected</h2>
-                            <p className="text-slate-400">Choose a client above to view billable items.</p>
+                            <h2 className="text-xl font-bold text-slate-400">No Guest Selected</h2>
+                            <p className="text-slate-400">Choose a guest above to view billable items.</p>
                         </div>
                     ) : (
                         <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
@@ -387,7 +387,7 @@ const Invoices: React.FC = () => {
                             <thead>
                                 <tr className="text-left text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50 bg-slate-50/50">
                                     <th className="px-6 py-4">Invoice #</th>
-                                    <th className="px-6 py-4">Client</th>
+                                    <th className="px-6 py-4">Guest</th>
                                     <th className="px-6 py-4">Date Issued</th>
                                     <th className="px-6 py-4">Due Date</th>
                                     <th className="px-6 py-4 text-right">Amount</th>
