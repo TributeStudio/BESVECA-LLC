@@ -12,9 +12,8 @@ import {
 } from 'recharts';
 import {
     CurrencyDollar,
-    Clock,
-    Briefcase,
-    ArrowUpRight
+    ArrowUpRight,
+    UserSquare
 } from '@phosphor-icons/react';
 
 const StatCard = ({ title, value, icon: Icon, color }: any) => (
@@ -37,13 +36,11 @@ const Dashboard: React.FC = () => {
 
     const stats = useMemo(() => {
         let totalRevenue = 0;
-        let totalHours = 0;
         const projectRevenueMap: Record<string, number> = {};
 
         logs.forEach(log => {
             const project = projects.find(p => p.id === log.projectId);
             if (log.type === 'TIME' && log.hours) {
-                totalHours += log.hours;
                 if (project) {
                     const rev = log.hours * project.hourlyRate;
                     totalRevenue += rev;
@@ -58,7 +55,7 @@ const Dashboard: React.FC = () => {
         });
 
         const chartData = Object.entries(projectRevenueMap).map(([name, value]) => ({ name, value }));
-        return { totalRevenue, totalHours, activeProjects: projects.length, chartData };
+        return { totalRevenue, activeGuests: projects.length, chartData };
     }, [logs, projects]);
 
     return (
@@ -68,7 +65,7 @@ const Dashboard: React.FC = () => {
                 <p className="text-slate-500">Your studio performance at a glance.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <StatCard
                     title="Total Revenue"
                     value={`$${stats.totalRevenue.toLocaleString()}`}
@@ -76,15 +73,9 @@ const Dashboard: React.FC = () => {
                     color="sky"
                 />
                 <StatCard
-                    title="Billable Hours"
-                    value={stats.totalHours.toLocaleString()}
-                    icon={Clock}
-                    color="indigo"
-                />
-                <StatCard
-                    title="Active Projects"
-                    value={stats.activeProjects.toLocaleString()}
-                    icon={Briefcase}
+                    title="Active Guests"
+                    value={stats.activeGuests.toLocaleString()}
+                    icon={UserSquare}
                     color="amber"
                 />
             </div>
