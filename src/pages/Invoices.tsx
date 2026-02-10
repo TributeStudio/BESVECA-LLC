@@ -31,9 +31,11 @@ const Invoices: React.FC = () => {
     const [emailDraft, setEmailDraft] = useState<string | null>(null);
 
     const clients = useMemo(() => {
-        const uniqueClients = Array.from(new Set(projects.map(p => p.client)));
+        const projectClients = projects.map(p => p.client).filter(Boolean);
+        const logClients = logs.map(l => l.client).filter(Boolean) as string[];
+        const uniqueClients = Array.from(new Set([...projectClients, ...logClients]));
         return uniqueClients.sort();
-    }, [projects]);
+    }, [projects, logs]);
 
     const clientProjects = useMemo(() => {
         if (!selectedClientId) return [];
@@ -46,7 +48,8 @@ const Invoices: React.FC = () => {
         // 1. Filter by Client
         let filtered = logs.filter(l => {
             const project = projects.find(p => p.id === l.projectId);
-            return project?.client === selectedClientId;
+            const logClient = l.client || project?.client;
+            return logClient === selectedClientId;
         });
 
         // 2. Filter by Specific Project
@@ -70,7 +73,7 @@ const Invoices: React.FC = () => {
             const project = projects.find(p => p.id === l.projectId);
             if (l.type === 'TIME' && l.hours && project) {
                 subtotal += l.hours * project.hourlyRate;
-            } else if (l.type === 'EXPENSE' && l.billableAmount) {
+            } else if ((l.type === 'EXPENSE' || l.type === 'STAY') && l.billableAmount) {
                 subtotal += l.billableAmount;
             }
         });
@@ -130,12 +133,43 @@ const Invoices: React.FC = () => {
 
         const invoiceItems = filteredLogs.map(log => {
             const project = projects.find(p => p.id === log.projectId);
-            const rate = log.type === 'TIME' ? (project?.hourlyRate || 0) : (log.cost || 0);
-            const quantity = log.type === 'TIME' ? (log.hours || 0) : 1;
-            const amount = log.type === 'TIME' ? (log.hours! * project!.hourlyRate) : log.billableAmount!;
+
+            let rate = 0;
+            let quantity = 1;
+            let amount = log.billableAmount || 0;
+
+            if (log.type === 'TIME') {
+                rate = project?.hourlyRate || 0;
+                quantity = log.hours || 0;
+                amount = quantity * rate;
+            } else if (log.type === 'STAY') {
+                rate = log.cost || 0; // In STAY, cost stores the rate
+                // Calculate nights if possible, otherwise quantity 1 (flat fee)
+                if (log.checkIn && log.checkOut && rate > 0) {
+                    amount = log.billableAmount || 0;
+                    // Approximate nights to avoid floating point issues
+                    quantity = Math.round(amount / rate);
+                    // Or recalculate nights properly
+                    const start = new Date(log.checkIn);
+                    const end = new Date(log.checkOut);
+                    const diffDays = Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                    // If amount ~= rate * diffDays, use diffDays. If flat fee, use 1.
+                    if (Math.abs(amount - (rate * diffDays)) < 0.1) {
+                        quantity = diffDays;
+                    } else {
+                        quantity = 1;
+                    }
+                }
+            } else {
+                // EXPENSE
+                rate = log.cost || 0;
+                quantity = 1;
+            }
 
             return {
-                description: `${project?.name} - ${log.description}`,
+                description: log.type === 'STAY'
+                    ? `${project?.name} - Stay ${log.checkIn} to ${log.checkOut}`
+                    : `${project?.name} - ${log.description}`,
                 quantity,
                 rate,
                 amount,
@@ -351,13 +385,16 @@ const Invoices: React.FC = () => {
                                                 </td>
                                                 <td className="px-8 py-6">
                                                     <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider
-                                                        ${log.type === 'TIME' ? 'bg-indigo-50 text-indigo-600' : 'bg-pink-50 text-pink-600'}`}>
+                                                        ${log.type === 'TIME' ? 'bg-indigo-50 text-indigo-600' :
+                                                            log.type === 'EXPENSE' ? 'bg-pink-50 text-pink-600' :
+                                                                'bg-emerald-50 text-emerald-600'}`}>
                                                         {log.type}
                                                     </span>
                                                 </td>
                                                 <td className="px-8 py-6 text-sm font-bold text-slate-900 text-right tabular-nums">
                                                     ${amount.toFixed(2)}
                                                     {log.type === 'TIME' && <span className="block text-[10px] font-normal text-slate-400">{log.hours}h @ ${project?.hourlyRate}/h</span>}
+                                                    {log.type === 'STAY' && log.checkIn && <span className="block text-[10px] font-normal text-slate-400">{log.checkIn} - {log.checkOut}</span>}
                                                 </td>
                                             </tr>
                                         );
@@ -545,7 +582,7 @@ const Invoices: React.FC = () => {
                                                         <span className="text-slate-500">{log.description}</span>
                                                     </td>
                                                     <td className="py-2 text-center align-top text-slate-500">
-                                                        {log.type === 'TIME' ? log.hours : '1'}
+                                                        {log.type === 'TIME' ? log.hours : (log.type === 'STAY' && log.checkIn && log.checkOut && log.cost && Math.abs((log.billableAmount || 0) - (log.cost * Math.ceil(Math.abs(new Date(log.checkOut).getTime() - new Date(log.checkIn).getTime()) / (86400000)))) < 0.1) ? Math.ceil(Math.abs(new Date(log.checkOut).getTime() - new Date(log.checkIn).getTime()) / (86400000)) : 1}
                                                     </td>
                                                     <td className="py-2 text-right align-top text-slate-500">
                                                         ${log.type === 'TIME' ? project?.hourlyRate : log.cost}

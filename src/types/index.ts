@@ -1,4 +1,4 @@
-export type LogType = 'TIME' | 'EXPENSE';
+export type LogType = 'TIME' | 'EXPENSE' | 'STAY';
 
 export interface Project {
   id: string;
@@ -12,6 +12,7 @@ export interface Project {
 export interface LogItem {
   id: string;
   projectId: string;
+  client?: string; // Allow overriding client (Guest Name)
   date: string;
   description: string;
   type: LogType;
@@ -20,6 +21,10 @@ export interface LogItem {
   // Expense specific
   cost?: number;
   markupPercent?: number;
+  // Stay specific
+  checkIn?: string;
+  checkOut?: string;
+
   billableAmount?: number;
   profit?: number;
   createdAt: number;
@@ -38,7 +43,7 @@ export interface InvoiceItem {
   quantity: number;
   rate: number;
   amount: number;
-  type: 'TIME' | 'EXPENSE';
+  type: LogType;
   originalLogId?: string; // Reference to original log
 }
 
