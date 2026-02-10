@@ -3,6 +3,15 @@ import { useApp } from '../context/AppContext';
 import { Tag, Plus, Check, PencilSimple, Trash, X, FloppyDisk, House, CalendarCheck } from '@phosphor-icons/react';
 import type { LogItem, LogType } from '../types';
 
+const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+        return `${parts[1]}-${parts[2]}-${parts[0]}`;
+    }
+    return dateStr;
+};
+
 const Tracker: React.FC = () => {
     const { projects, logs, addLog, updateLog, deleteLog } = useApp();
     const [activeTab, setActiveTab] = useState<LogType>('STAY');
@@ -95,7 +104,7 @@ const Tracker: React.FC = () => {
             const logData: any = {
                 projectId: formData.projectId,
                 date: formData.date,
-                description: formData.description || (activeTab === 'STAY' ? `Stay: ${formData.client}` : ''),
+                description: formData.description || (activeTab === 'STAY' ? `Stay: ${formData.client} ` : ''),
                 type: activeTab,
                 client: formData.client,
             };
@@ -205,16 +214,16 @@ const Tracker: React.FC = () => {
                         <div className="flex border-b border-slate-100">
                             <button
                                 onClick={() => setActiveTab('STAY')}
-                                className={`flex-1 py-4 font-medium text-sm flex items-center justify-center gap-2 transition-all
-                                ${activeTab === 'STAY' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                                className={`flex - 1 py - 4 font - medium text - sm flex items - center justify - center gap - 2 transition - all
+                                ${activeTab === 'STAY' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'} `}
                             >
                                 <House size={16} weight="duotone" /> Guest Stay
                             </button>
 
                             <button
                                 onClick={() => setActiveTab('EXPENSE')}
-                                className={`flex-1 py-4 font-medium text-sm flex items-center justify-center gap-2 transition-all
-                                ${activeTab === 'EXPENSE' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                                className={`flex - 1 py - 4 font - medium text - sm flex items - center justify - center gap - 2 transition - all
+                                ${activeTab === 'EXPENSE' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'} `}
                             >
                                 <Tag size={16} weight="duotone" /> Expense
                             </button>
@@ -442,8 +451,8 @@ const Tracker: React.FC = () => {
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all
-                            ${success ? 'bg-emerald-500 text-white' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+                            className={`w - full py - 4 rounded - xl font - bold flex items - center justify - center gap - 2 transition - all
+                            ${success ? 'bg-emerald-500 text-white' : 'bg-slate-900 text-white hover:bg-slate-800'} `}
                         >
                             {isLoading ? (
                                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -464,9 +473,10 @@ const Tracker: React.FC = () => {
                             return (
                                 <div key={log.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group">
                                     <div className="flex justify-between items-start mb-3">
-                                        <div className={`p-2 rounded-lg 
+                                        <div className={`p - 2 rounded - lg 
                                             ${log.type === 'EXPENSE' ? 'bg-pink-50 text-pink-600' :
-                                                'bg-emerald-50 text-emerald-600'}`}>
+                                                'bg-emerald-50 text-emerald-600'
+                                            } `}>
                                             {log.type === 'EXPENSE' && <Tag size={20} weight="duotone" />}
                                             {log.type === 'STAY' && <House size={20} weight="duotone" />}
                                         </div>
@@ -491,14 +501,14 @@ const Tracker: React.FC = () => {
                                     {log.type === 'STAY' && (
                                         <div className="text-xs text-slate-500 mb-2 flex items-center gap-1">
                                             <CalendarCheck size={12} />
-                                            {log.checkIn} - {log.checkOut}
+                                            {formatDate(log.checkIn!)} - {formatDate(log.checkOut!)}
                                         </div>
                                     )}
                                     <p className="text-xs text-slate-500 mb-3">{project?.name || 'Unknown Property'}</p>
                                     <div className="flex justify-between items-center pt-3 border-t border-slate-50">
-                                        <span className="text-[10px] text-slate-400 font-medium">{log.date}</span>
+                                        <span className="text-[10px] text-slate-400 font-medium">{formatDate(log.date)}</span>
                                         <span className="text-sm font-bold text-slate-900">
-                                            {log.type === 'TIME' ? `${log.hours}h` : `$${log.billableAmount?.toFixed(2)}`}
+                                            {log.type === 'TIME' ? `${log.hours} h` : `$${log.billableAmount?.toFixed(2)} `}
                                         </span>
                                     </div>
                                 </div>

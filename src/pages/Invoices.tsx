@@ -13,6 +13,15 @@ import {
 } from '@phosphor-icons/react';
 import { COMPANY_CONFIG } from '../config/company';
 
+const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+        return `${parts[1]}-${parts[2]}-${parts[0]}`;
+    }
+    return dateStr;
+};
+
 const Invoices: React.FC = () => {
     const { logs, projects, addInvoice, invoices, updateInvoice } = useApp();
     const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
@@ -197,10 +206,10 @@ const Invoices: React.FC = () => {
             }
 
             const dates = log.type === 'STAY' && log.checkIn && log.checkOut
-                ? `${log.checkIn} to ${log.checkOut}`
+                ? `${formatDate(log.checkIn)} to ${formatDate(log.checkOut)}`
                 : log.type === 'TIME' && log.hours
-                    ? `${log.date} (${log.hours}h)`
-                    : log.date;
+                    ? `${formatDate(log.date)} (${log.hours}h)`
+                    : formatDate(log.date);
 
             return {
                 description: log.type === 'STAY'
@@ -594,7 +603,7 @@ const Invoices: React.FC = () => {
 
                                         return (
                                             <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                                                <td className="px-8 py-6 text-sm text-slate-500 tabular-nums">{log.date}</td>
+                                                <td className="px-8 py-6 text-sm text-slate-500 tabular-nums">{formatDate(log.date)}</td>
                                                 <td className="px-8 py-6">
                                                     <p className="text-sm font-bold text-slate-900 mb-0.5">{project?.name}</p>
                                                     <p className="text-sm text-slate-500">{log.description}</p>
@@ -610,7 +619,7 @@ const Invoices: React.FC = () => {
                                                 <td className="px-8 py-6 text-sm font-bold text-slate-900 text-right tabular-nums">
                                                     ${amount.toFixed(2)}
                                                     {log.type === 'TIME' && <span className="block text-[10px] font-normal text-slate-400">{log.hours}h @ ${project?.hourlyRate}/h</span>}
-                                                    {log.type === 'STAY' && log.checkIn && <span className="block text-[10px] font-normal text-slate-400">{log.checkIn} - {log.checkOut}</span>}
+                                                    {log.type === 'STAY' && log.checkIn && <span className="block text-[10px] font-normal text-slate-400">{formatDate(log.checkIn)} - {formatDate(log.checkOut!)}</span>}
                                                 </td>
                                             </tr>
                                         );
@@ -659,10 +668,10 @@ const Invoices: React.FC = () => {
                                         <tr key={invoice.id} className="hover:bg-slate-50 transition-colors">
                                             <td className="px-6 py-4 font-mono text-xs font-bold text-slate-500">{invoice.invoiceNumber || '---'}</td>
                                             <td className="px-6 py-4 font-bold text-slate-900">{invoice.clientId}</td>
-                                            <td className="px-6 py-4 text-sm text-slate-500">{invoice.date}</td>
+                                            <td className="px-6 py-4 text-sm text-slate-500">{formatDate(invoice.date)}</td>
                                             <td className="px-6 py-4 text-sm">
                                                 <span className={!isPaid && overdueDays > 0 ? "text-red-500 font-bold" : "text-slate-500"}>
-                                                    {invoice.dueDate}
+                                                    {formatDate(invoice.dueDate)}
                                                 </span>
                                                 {!isPaid && overdueDays > 0 && (
                                                     <span className="ml-2 text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">
@@ -774,7 +783,7 @@ const Invoices: React.FC = () => {
                                             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest text-[#94a3b8]">
                                                 #{draftInvoiceNumber}
                                             </p>
-                                            <p className="text-[11px] text-slate-500 mt-2">{new Date().toLocaleDateString()}</p>
+                                            <p className="text-[11px] text-slate-500 mt-2">{formatDate(new Date().toISOString().slice(0, 10))}</p>
                                         </div>
                                     </div>
 
@@ -808,10 +817,10 @@ const Invoices: React.FC = () => {
                                                 // Display Logic matches handleSaveInvoice
                                                 const description = log.type === 'STAY' ? 'Luxury Stay' : log.description;
                                                 const dates = log.type === 'STAY' && log.checkIn && log.checkOut
-                                                    ? `${log.checkIn} to ${log.checkOut}`
+                                                    ? `${formatDate(log.checkIn)} to ${formatDate(log.checkOut)}`
                                                     : log.type === 'TIME' && log.hours
-                                                        ? `${log.date} (${log.hours}h)`
-                                                        : log.date;
+                                                        ? `${formatDate(log.date)} (${log.hours}h)`
+                                                        : formatDate(log.date);
 
                                                 const fee = log.type === 'TIME' ? project?.hourlyRate : log.cost;
 
@@ -870,12 +879,12 @@ const Invoices: React.FC = () => {
                                                         <>
                                                             <tr>
                                                                 <td className="py-2 font-medium text-slate-900">Deposit (50%)</td>
-                                                                <td className="py-2 text-slate-500">{depositDate ? new Date(depositDate).toLocaleDateString() : 'Upon Receipt'}</td>
+                                                                <td className="py-2 text-slate-500">{depositDate ? formatDate(depositDate) : 'Upon Receipt'}</td>
                                                                 <td className="py-2 text-right font-bold text-slate-900">${(totals.total * 0.5).toFixed(2)}</td>
                                                             </tr>
                                                             <tr>
                                                                 <td className="py-2 font-medium text-slate-900">Balance (50%)</td>
-                                                                <td className="py-2 text-slate-500">{balanceDate ? new Date(balanceDate).toLocaleDateString() : 'Upon Arrival'}</td>
+                                                                <td className="py-2 text-slate-500">{balanceDate ? formatDate(balanceDate) : 'Upon Arrival'}</td>
                                                                 <td className="py-2 text-right font-bold text-slate-900">${(totals.total - (totals.total * 0.5)).toFixed(2)}</td>
                                                             </tr>
                                                         </>
