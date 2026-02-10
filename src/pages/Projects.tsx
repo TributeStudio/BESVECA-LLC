@@ -41,45 +41,41 @@ const Projects: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (isSaving) return;
         setIsSaving(true);
 
-        const timeout = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Request timed out')), 8000)
-        );
+        // Safety timeout to prevent infinite spinning
+        const timeoutId = setTimeout(() => {
+            console.warn('Operation timed out in UI safety check');
+            setIsSaving(false);
+            alert('Request timed out. Please check your connection and try again.');
+        }, 8000);
 
         try {
+            const projectData = {
+                name: formData.name,
+                client: formData.client,
+                email: formData.email,
+                phone: formData.phone,
+                address: formData.address,
+                hourlyRate: Number(formData.hourlyRate),
+                status: formData.status
+            };
+
             if (editingProject) {
-                await Promise.race([
-                    updateProject(editingProject.id, {
-                        name: formData.name,
-                        client: formData.client,
-                        email: formData.email,
-                        phone: formData.phone,
-                        address: formData.address,
-                        hourlyRate: Number(formData.hourlyRate),
-                        status: formData.status
-                    }),
-                    timeout
-                ]);
+                await updateProject(editingProject.id, projectData);
             } else {
-                await Promise.race([
-                    addProject({
-                        name: formData.name,
-                        client: formData.client,
-                        email: formData.email,
-                        phone: formData.phone,
-                        address: formData.address,
-                        hourlyRate: Number(formData.hourlyRate),
-                        status: formData.status
-                    }),
-                    timeout
-                ]);
+                await addProject(projectData);
             }
+
+            // Only close if successful
             handleCloseModal();
         } catch (error) {
-            console.error('Submit handle error:', error);
-            alert('Operation took too long or failed. Please refresh and try again.');
+            console.error('Submit error:', error);
+            // Alert is handled in AppContext for add/update, but we can have a fallback here
         } finally {
+            clearTimeout(timeoutId);
             setIsSaving(false);
         }
     };

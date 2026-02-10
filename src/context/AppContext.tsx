@@ -231,10 +231,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             console.log('Project synced to server:', docRef.id);
         } catch (error: any) {
             console.error('Firestore Add Project Error:', error);
-            if (error.code === 'permission-denied') {
-                alert('Save Failed: You do not have permission to create projects.');
-                throw error; // Re-throw so UI knows it failed
-            }
+            alert(`Error saving guest: ${error.message}`);
+            throw error;
         }
     };
 
@@ -303,6 +301,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             await updateDoc(doc(db, 'users', state.user.uid, 'projects', id), updates);
         } catch (error: any) {
             console.error('Firestore Update Project Error:', error);
+            alert(`Error updating guest: ${error.message}`);
+            throw error;
         }
     };
 
