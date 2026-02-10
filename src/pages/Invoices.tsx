@@ -627,9 +627,21 @@ const Invoices: React.FC = () => {
                                 </tbody>
                                 <tfoot>
                                     <tr className="bg-slate-50/50">
-                                        <td colSpan={3} className="px-8 py-8 text-right font-bold text-lg">Invoice Total</td>
-                                        <td className="px-8 py-8 text-right font-bold text-2xl text-slate-900">${totals.total.toFixed(2)}</td>
+                                        <td colSpan={3} className="px-8 py-4 text-right font-bold text-lg text-slate-500">Total</td>
+                                        <td className="px-8 py-4 text-right font-bold text-xl text-slate-500">${totals.total.toFixed(2)}</td>
                                     </tr>
+                                    {Number(paymentsReceived) > 0 && (
+                                        <>
+                                            <tr className="bg-emerald-50/30">
+                                                <td colSpan={3} className="px-8 py-2 text-right font-medium text-emerald-600">Payment Received</td>
+                                                <td className="px-8 py-2 text-right font-medium text-emerald-600">-${Number(paymentsReceived).toFixed(2)}</td>
+                                            </tr>
+                                            <tr className="bg-slate-100 border-t-2 border-slate-900">
+                                                <td colSpan={3} className="px-8 py-6 text-right font-bold text-xl text-slate-900">Balance Due</td>
+                                                <td className="px-8 py-6 text-right font-bold text-3xl text-slate-900">${(totals.total - Number(paymentsReceived)).toFixed(2)}</td>
+                                            </tr>
+                                        </>
+                                    )}
                                 </tfoot>
                             </table>
                         </div>
@@ -855,10 +867,22 @@ const Invoices: React.FC = () => {
                                                 <span>Tax</span>
                                                 <span>$0.00</span>
                                             </div>
-                                            <div className="flex justify-between font-bold text-sm text-slate-900 border-t border-slate-200 pt-2">
+                                            <div className={`flex justify-between font-bold text-sm text-slate-900 border-t border-slate-200 pt-2 ${Number(paymentsReceived) > 0 ? 'mb-2' : ''}`}>
                                                 <span>Total</span>
                                                 <span>${totals.total.toFixed(2)}</span>
                                             </div>
+                                            {Number(paymentsReceived) > 0 && (
+                                                <>
+                                                    <div className="flex justify-between mb-2 text-emerald-600 font-medium">
+                                                        <span>Payment Received</span>
+                                                        <span>-${Number(paymentsReceived).toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between font-bold text-base text-slate-900 border-t-2 border-slate-900 pt-2">
+                                                        <span>Balance Due</span>
+                                                        <span>${(totals.total - Number(paymentsReceived)).toFixed(2)}</span>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
 
@@ -880,12 +904,12 @@ const Invoices: React.FC = () => {
                                                             <tr>
                                                                 <td className="py-2 font-medium text-slate-900">Deposit (50%)</td>
                                                                 <td className="py-2 text-slate-500">{depositDate ? formatDate(depositDate) : 'Upon Receipt'}</td>
-                                                                <td className="py-2 text-right font-bold text-slate-900">${(totals.total * 0.5).toFixed(2)}</td>
+                                                                <td className="py-2 text-right font-bold text-slate-900">${((totals.total - (Number(paymentsReceived) || 0)) * 0.5).toFixed(2)}</td>
                                                             </tr>
                                                             <tr>
                                                                 <td className="py-2 font-medium text-slate-900">Balance (50%)</td>
                                                                 <td className="py-2 text-slate-500">{balanceDate ? formatDate(balanceDate) : 'Upon Arrival'}</td>
-                                                                <td className="py-2 text-right font-bold text-slate-900">${(totals.total - (totals.total * 0.5)).toFixed(2)}</td>
+                                                                <td className="py-2 text-right font-bold text-slate-900">${((totals.total - (Number(paymentsReceived) || 0)) - ((totals.total - (Number(paymentsReceived) || 0)) * 0.5)).toFixed(2)}</td>
                                                             </tr>
                                                         </>
                                                     ) : null}
