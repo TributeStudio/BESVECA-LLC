@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Clock, Tag, Plus, Check, PencilSimple, Trash, X, FloppyDisk, House, CalendarCheck } from '@phosphor-icons/react';
+import { Tag, Plus, Check, PencilSimple, Trash, X, FloppyDisk, House, CalendarCheck } from '@phosphor-icons/react';
 import type { LogItem, LogType } from '../types';
 
 const Tracker: React.FC = () => {
@@ -24,6 +24,7 @@ const Tracker: React.FC = () => {
         pricingMode: 'NIGHTLY' as 'NIGHTLY' | 'FLAT',
         cleaningCount: '1',
         cleaningFee: '275',
+        poolHeat: '',
     });
 
     const [selectedProperty, setSelectedProperty] = useState<string>('');
@@ -58,10 +59,11 @@ const Tracker: React.FC = () => {
                 ? Number(formData.rate)
                 : Number(formData.rate) * nights;
             const cleaningTotal = Number(formData.cleaningCount) * Number(formData.cleaningFee);
-            return stayTotal + cleaningTotal;
+            const poolHeatTotal = Number(formData.poolHeat) || 0;
+            return stayTotal + cleaningTotal + poolHeatTotal;
         }
         return 0;
-    }, [activeTab, formData.cost, formData.markupPercent, formData.rate, formData.pricingMode, nights, formData.cleaningCount, formData.cleaningFee]);
+    }, [activeTab, formData.cost, formData.markupPercent, formData.rate, formData.pricingMode, nights, formData.cleaningCount, formData.cleaningFee, formData.poolHeat]);
 
     const profit = activeTab === 'EXPENSE'
         ? (billableAmount - Number(formData.cost))
@@ -112,6 +114,7 @@ const Tracker: React.FC = () => {
                 logData.cost = Number(formData.rate);
                 logData.cleaningCount = Number(formData.cleaningCount);
                 logData.cleaningFee = Number(formData.cleaningFee);
+                logData.poolHeat = Number(formData.poolHeat);
             }
 
             if (editingLogId) {
@@ -148,6 +151,7 @@ const Tracker: React.FC = () => {
             pricingMode: 'NIGHTLY',
             cleaningCount: '1',
             cleaningFee: '275',
+            poolHeat: '',
         });
         setSelectedProperty('');
     };
@@ -177,6 +181,7 @@ const Tracker: React.FC = () => {
             pricingMode: 'FLAT', // Default to flat when editing legacy or simplified
             cleaningCount: log.cleaningCount?.toString() || '1',
             cleaningFee: log.cleaningFee?.toString() || '275',
+            poolHeat: log.poolHeat?.toString() || '',
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -190,7 +195,7 @@ const Tracker: React.FC = () => {
     return (
         <div className="max-w-4xl mx-auto space-y-12">
             <div className="flex flex-col items-center">
-                <h1 className="text-4xl font-bold text-slate-900 mb-2 text-center">Guest Tracker</h1>
+                <h1 className="text-4xl font-bold text-slate-900 mb-2 text-center">Guest Folio</h1>
                 <p className="text-slate-500 text-center">Manage check-ins, stays, and pricing.</p>
             </div>
 
@@ -205,13 +210,7 @@ const Tracker: React.FC = () => {
                             >
                                 <House size={16} weight="duotone" /> Guest Stay
                             </button>
-                            <button
-                                onClick={() => setActiveTab('TIME')}
-                                className={`flex-1 py-4 font-medium text-sm flex items-center justify-center gap-2 transition-all
-                                ${activeTab === 'TIME' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
-                            >
-                                <Clock size={16} weight="duotone" /> Hourly
-                            </button>
+
                             <button
                                 onClick={() => setActiveTab('EXPENSE')}
                                 className={`flex-1 py-4 font-medium text-sm flex items-center justify-center gap-2 transition-all
@@ -352,6 +351,9 @@ const Tracker: React.FC = () => {
                                             {Number(formData.cleaningCount) > 0 && (
                                                 <> + {formData.cleaningCount} clean(s) x ${Number(formData.cleaningFee).toFixed(2)}</>
                                             )}
+                                            {Number(formData.poolHeat) > 0 && (
+                                                <> + Pool Heat ${Number(formData.poolHeat).toFixed(2)}</>
+                                            )}
                                             = <span className="font-bold text-slate-900">${billableAmount.toFixed(2)}</span>
                                         </div>
                                     )}
@@ -382,6 +384,18 @@ const Tracker: React.FC = () => {
                                         />
                                     </div>
                                 </div>
+
+                                <div className="space-y-2 mt-4">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pool Heat (Flat Fee $)</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        placeholder="0.00"
+                                        value={formData.poolHeat}
+                                        onChange={(e) => setFormData({ ...formData, poolHeat: e.target.value })}
+                                        className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
+                                    />
+                                </div>
                             </>
                         )}
 
@@ -396,21 +410,6 @@ const Tracker: React.FC = () => {
                                 className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
                             />
                         </div>
-
-                        {activeTab === 'TIME' && (
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Hours</label>
-                                <input
-                                    type="number"
-                                    step="0.25"
-                                    placeholder="0.00"
-                                    required
-                                    value={formData.hours}
-                                    onChange={(e) => setFormData({ ...formData, hours: e.target.value })}
-                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
-                                />
-                            </div>
-                        )}
 
                         {activeTab === 'EXPENSE' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -455,7 +454,7 @@ const Tracker: React.FC = () => {
                             )}
                         </button>
                     </form>
-                </div>
+                </div >
 
                 <div className="lg:col-span-2 space-y-6">
                     <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest px-2">Recent Logs</h2>
@@ -466,10 +465,8 @@ const Tracker: React.FC = () => {
                                 <div key={log.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group">
                                     <div className="flex justify-between items-start mb-3">
                                         <div className={`p-2 rounded-lg 
-                                            ${log.type === 'TIME' ? 'bg-sky-50 text-sky-600' :
-                                                log.type === 'EXPENSE' ? 'bg-pink-50 text-pink-600' :
-                                                    'bg-emerald-50 text-emerald-600'}`}>
-                                            {log.type === 'TIME' && <Clock size={20} weight="duotone" />}
+                                            ${log.type === 'EXPENSE' ? 'bg-pink-50 text-pink-600' :
+                                                'bg-emerald-50 text-emerald-600'}`}>
                                             {log.type === 'EXPENSE' && <Tag size={20} weight="duotone" />}
                                             {log.type === 'STAY' && <House size={20} weight="duotone" />}
                                         </div>
@@ -514,8 +511,8 @@ const Tracker: React.FC = () => {
                         )}
                     </div>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

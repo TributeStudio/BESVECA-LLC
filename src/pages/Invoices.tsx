@@ -7,7 +7,9 @@ import {
     Envelope,
     CircleNotch,
     X,
-    Sparkle
+    Sparkle,
+    CreditCard,
+    PlusCircle
 } from '@phosphor-icons/react';
 import { COMPANY_CONFIG } from '../config/company';
 
@@ -26,9 +28,23 @@ const Invoices: React.FC = () => {
     const [paymentTerms, setPaymentTerms] = useState('DUE_ON_RECEIPT');
     const [customDueDate, setCustomDueDate] = useState('');
 
+    // Payment Structure State
+    const [paymentStructure, setPaymentStructure] = useState<'FULL' | 'DEPOSIT_50'>('FULL');
+    const [depositDate, setDepositDate] = useState(new Date().toISOString().slice(0, 10));
+    const [balanceDate, setBalanceDate] = useState('');
+    const [paymentsReceived, setPaymentsReceived] = useState('');
+    const [paymentsReceivedNote, setPaymentsReceivedNote] = useState('');
+
     const [showPreview, setShowPreview] = useState(false);
     const [emailLoading, setEmailLoading] = useState(false);
     const [emailDraft, setEmailDraft] = useState<string | null>(null);
+
+    // Payment Recording State
+    const [paymentModalOpen, setPaymentModalOpen] = useState<string | null>(null); // Invoice ID
+    const [paymentAmount, setPaymentAmount] = useState('');
+    const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+    const [paymentMethod, setPaymentMethod] = useState('Credit Card');
+    const [paymentNote, setPaymentNote] = useState('');
 
     const clients = useMemo(() => {
         const projectClients = projects.map(p => p.client).filter(Boolean);
@@ -66,6 +82,20 @@ const Invoices: React.FC = () => {
 
         return filtered.sort((a, b) => b.date.localeCompare(a.date));
     }, [selectedClientId, selectedProjectId, dateFilterType, selectedMonth, dateRange, logs, projects]);
+
+    const earliestCheckIn = useMemo(() => {
+        const stayLogs = filteredLogs.filter(l => l.type === 'STAY' && l.checkIn);
+        if (stayLogs.length === 0) return '';
+        const dates = stayLogs.map(l => l.checkIn!).sort();
+        return dates[0];
+    }, [filteredLogs]);
+
+    // Auto-set balance date when check-in is found
+    React.useEffect(() => {
+        if (earliestCheckIn && !balanceDate) {
+            setBalanceDate(earliestCheckIn);
+        }
+    }, [earliestCheckIn]);
 
     const totals = useMemo(() => {
         let subtotal = 0;
@@ -166,17 +196,68 @@ const Invoices: React.FC = () => {
                 quantity = 1;
             }
 
+            const dates = log.type === 'STAY' && log.checkIn && log.checkOut
+                ? `${log.checkIn} to ${log.checkOut}`
+                : log.type === 'TIME' && log.hours
+                    ? `${log.date} (${log.hours}h)`
+                    : log.date;
+
             return {
                 description: log.type === 'STAY'
-                    ? `${project?.name} - Stay ${log.checkIn} to ${log.checkOut}`
-                    : `${project?.name} - ${log.description}`,
+                    ? `Luxury Stay`
+                    : log.description,
                 quantity,
                 rate,
                 amount,
                 type: log.type,
-                originalLogId: log.id
+                originalLogId: log.id,
+                dates
             };
         });
+
+        // Generate Schedule
+        let paymentSchedule: any[] = [];
+        const initialPayment = Number(paymentsReceived) || 0;
+        const remainingTotal = totals.total - initialPayment;
+
+        if (paymentStructure === 'DEPOSIT_50') {
+            const depositAmount = Math.round(remainingTotal * 0.5 * 100) / 100;
+            const balanceAmount = Number((remainingTotal - depositAmount).toFixed(2));
+            paymentSchedule = [
+                {
+                    id: crypto.randomUUID(),
+                    label: 'Deposit (50% due upon booking)',
+                    date: depositDate || new Date().toISOString().slice(0, 10),
+                    amount: depositAmount
+                },
+                {
+                    id: crypto.randomUUID(),
+                    label: 'Balance (Due on or before check-in)',
+                    date: balanceDate || calculateDueDate(),
+                    amount: balanceAmount
+                }
+            ];
+        }
+
+        // Create Initial Payment Record if applicable
+        const initialPaymentsList = [];
+        if (initialPayment > 0) {
+            initialPaymentsList.push({
+                id: crypto.randomUUID(),
+                date: new Date().toISOString().slice(0, 10),
+                amount: initialPayment,
+                method: 'Pre-payment',
+                note: paymentsReceivedNote || 'Initial Payment / Deposit'
+            });
+        }
+
+        // Determine status
+        let status: 'PAID' | 'PARTIAL' | 'SENT' = 'SENT';
+        if (initialPayment >= totals.total - 0.01) {
+            status = 'PAID';
+        } else if (initialPayment > 0) {
+            status = 'PARTIAL';
+        }
 
         const newInvoice = {
             clientId: selectedClientId,
@@ -185,16 +266,20 @@ const Invoices: React.FC = () => {
             dueDate: calculateDueDate(),
             terms: paymentTerms,
             items: invoiceItems,
+            paymentSchedule: paymentSchedule.length > 0 ? paymentSchedule : undefined,
             subtotal: totals.subtotal,
             tax: totals.tax,
             total: totals.total,
-            status: 'SENT' as const
+            payments: initialPaymentsList.length > 0 ? initialPaymentsList : undefined,
+            status
         };
 
         await addInvoice(newInvoice);
         setShowPreview(false);
         setActiveTab('history');
-        // Optional: Reset selections
+        // Reset specific fields
+        setPaymentsReceived('');
+        setPaymentsReceivedNote('');
     };
 
     const handleDraftEmail = async (clientId: string, total: string, projectNames: string[]) => {
@@ -207,6 +292,45 @@ const Invoices: React.FC = () => {
         } finally {
             setEmailLoading(false);
         }
+    };
+
+    const handleRecordPayment = async () => {
+        if (!paymentModalOpen || !paymentAmount) return;
+
+        const invoice = invoices.find(i => i.id === paymentModalOpen);
+        if (!invoice) return;
+
+        const newPayment = {
+            id: crypto.randomUUID(),
+            date: paymentDate,
+            amount: Number(paymentAmount),
+            method: paymentMethod,
+            note: paymentNote
+        };
+
+        const updatedPayments = [...(invoice.payments || []), newPayment];
+        const totalPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0);
+
+        // Determine status
+        let newStatus: 'SENT' | 'PARTIAL' | 'PAID' = 'SENT';
+        if (totalPaid >= invoice.total - 0.01) { // Tolerance for float math
+            newStatus = 'PAID';
+        } else if (totalPaid > 0) {
+            newStatus = 'PARTIAL';
+        }
+
+        await updateInvoice(invoice.id, {
+            payments: updatedPayments,
+            status: newStatus
+        });
+
+        setPaymentModalOpen(null);
+        setPaymentAmount('');
+        setPaymentNote('');
+    };
+
+    const getPaidAmount = (invoice: any) => {
+        return (invoice.payments || []).reduce((sum: number, p: any) => sum + p.amount, 0);
     };
 
     return (
@@ -247,7 +371,7 @@ const Invoices: React.FC = () => {
                     </div>
 
                     {/* Filter Controls (Existing) */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 print:hidden">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 print:hidden mb-6">
                         <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Guests</label>
                             <select
@@ -262,7 +386,6 @@ const Invoices: React.FC = () => {
                                 {clients.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                         </div>
-                        {/* ... (Other filters same as before) ... */}
                         <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Project Scope</label>
                             <select
@@ -351,6 +474,99 @@ const Invoices: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* Payment Structure Configuration */}
+                    {selectedClientId && filteredLogs.length > 0 && (
+                        <div className="bg-slate-50/50 border border-slate-200 p-6 rounded-3xl mb-8 print:hidden">
+                            <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                                <CreditCard size={18} weight="duotone" /> Payment Structure
+                            </h3>
+                            <div className="flex flex-col md:flex-row gap-6">
+                                <div className="space-y-4 flex-1">
+                                    <div className="flex gap-4">
+                                        <label className={`flex-1 cursor-pointer p-4 rounded-xl border-2 transition-all
+                                            ${paymentStructure === 'FULL' ? 'bg-white border-slate-900 shadow-sm' : 'bg-transparent border-slate-100 hover:border-slate-300'}`}>
+                                            <input
+                                                type="radio"
+                                                name="paymentStructure"
+                                                className="hidden"
+                                                checked={paymentStructure === 'FULL'}
+                                                onChange={() => setPaymentStructure('FULL')}
+                                            />
+                                            <div className="font-bold text-slate-900 mb-1">Standard Invoice</div>
+                                            <div className="text-xs text-slate-500">Full amount due based on terms.</div>
+                                        </label>
+                                        <label className={`flex-1 cursor-pointer p-4 rounded-xl border-2 transition-all
+                                            ${paymentStructure === 'DEPOSIT_50' ? 'bg-white border-slate-900 shadow-sm' : 'bg-transparent border-slate-100 hover:border-slate-300'}`}>
+                                            <input
+                                                type="radio"
+                                                name="paymentStructure"
+                                                className="hidden"
+                                                checked={paymentStructure === 'DEPOSIT_50'}
+                                                onChange={() => setPaymentStructure('DEPOSIT_50')}
+                                            />
+                                            <div className="font-bold text-slate-900 mb-1">50/50 Split</div>
+                                            <div className="text-xs text-slate-500">50% due now, 50% due later.</div>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {paymentStructure === 'DEPOSIT_50' && (
+                                    <div className="flex-1 grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-left-4 duration-300">
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Deposit Due Date</label>
+                                            <input
+                                                type="date"
+                                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-slate-900"
+                                                value={depositDate}
+                                                onChange={(e) => setDepositDate(e.target.value)}
+                                            />
+                                            <p className="text-[10px] text-slate-500">Usually today (Booking)</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Balance Due Date</label>
+                                            <input
+                                                type="date"
+                                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-slate-900"
+                                                value={balanceDate}
+                                                onChange={(e) => setBalanceDate(e.target.value)}
+                                            />
+                                            <p className="text-[10px] text-slate-500">Usually Check-in Date</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+
+                            {/* Pre-Payments Section */}
+                            <div className="mt-6 border-t border-slate-200 pt-6">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Payments Already Received</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Amount Received ($)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-slate-900"
+                                            placeholder="0.00"
+                                            value={paymentsReceived}
+                                            onChange={(e) => setPaymentsReceived(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Note (Optional)</label>
+                                        <input
+                                            type="text"
+                                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-slate-900"
+                                            placeholder="e.g. Deposit via Wire"
+                                            value={paymentsReceivedNote}
+                                            onChange={(e) => setPaymentsReceivedNote(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {!selectedClientId ? (
                         <div className="bg-slate-100/50 border-2 border-dashed border-slate-200 rounded-3xl p-20 text-center">
                             <FileText size={48} weight="duotone" className="mx-auto text-slate-300 mb-4" />
@@ -436,6 +652,9 @@ const Invoices: React.FC = () => {
                                 {invoices.map((invoice) => {
                                     const overdueDays = getOverdueDays(invoice.dueDate);
                                     const isPaid = invoice.status === 'PAID';
+                                    const paidAmount = getPaidAmount(invoice);
+                                    const balanceDue = invoice.total - paidAmount;
+
                                     return (
                                         <tr key={invoice.id} className="hover:bg-slate-50 transition-colors">
                                             <td className="px-6 py-4 font-mono text-xs font-bold text-slate-500">{invoice.invoiceNumber || '---'}</td>
@@ -451,33 +670,41 @@ const Invoices: React.FC = () => {
                                                     </span>
                                                 )}
                                             </td>
-                                            <td className="px-6 py-4 text-right font-bold text-slate-900">${invoice.total.toFixed(2)}</td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="font-bold text-slate-900">${invoice.total.toFixed(2)}</div>
+                                                {paidAmount > 0 && Math.abs(balanceDue) > 0.01 && (
+                                                    <div className="text-[10px] text-slate-500 font-medium">
+                                                        Paid: ${paidAmount.toFixed(2)} <span className="text-amber-600">(Due: ${balanceDue.toFixed(2)})</span>
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className="px-6 py-4 text-center">
                                                 <span className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider
-                                                    ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                                                    ${isPaid ? 'bg-emerald-100 text-emerald-700' :
+                                                        invoice.status === 'PARTIAL' ? 'bg-amber-100 text-amber-700' :
+                                                            'bg-slate-100 text-slate-600'}`}>
                                                     {invoice.status}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-right flex justify-end gap-2">
                                                 {!isPaid && (
                                                     <button
-                                                        onClick={() => updateInvoice(invoice.id, { status: 'PAID' })}
-                                                        className="text-[10px] font-bold bg-slate-900 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700"
+                                                        onClick={() => {
+                                                            setPaymentModalOpen(invoice.id);
+                                                            setPaymentAmount(balanceDue.toFixed(2));
+                                                        }}
+                                                        className="text-[10px] font-bold bg-slate-900 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700 flex items-center gap-1"
                                                     >
-                                                        Mark Paid
+                                                        <PlusCircle size={14} weight="bold" /> Pay
                                                     </button>
                                                 )}
                                                 <button
                                                     onClick={() => {
                                                         const projectNames = Array.from(new Set(invoice.items.map(i => i.description.split(' - ')[0])));
                                                         handleDraftEmail(invoice.clientId, invoice.total.toFixed(2), projectNames);
-                                                        setEmailDraft("Generating...");
-                                                        setShowPreview(false); // Make sure modal closed if opening email elsewhere? Actually let's assume Email View pops up or we show simple modal.
-                                                        // For simplicity, we'll reuse the emailDraft state but maybe show it in a simple modal.
-                                                        // Actually, let's just log for now or show in a separate minimal modal.
-                                                        // Or better: open the draft email logic.
                                                     }}
-                                                    className="text-slate-400 hover:text-slate-900"
+                                                    className="text-slate-400 hover:text-slate-900 p-1.5"
+                                                    title="Draft Email"
                                                 >
                                                     <Envelope size={18} weight="duotone" />
                                                 </button>
@@ -489,170 +716,285 @@ const Invoices: React.FC = () => {
                         </table>
                     )}
                 </div>
-            )}
+            )
+            }
 
             {/* Invoice Modal Preview */}
-            {showPreview && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm print:p-0 print:bg-white print:fixed print:inset-0">
-                    <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col print:shadow-none print:max-w-none print:max-h-none print:rounded-none">
-                        <div className="p-6 border-b border-slate-100 flex items-center justify-between print:hidden">
-                            <h2 className="font-bold text-xl">Invoice Preview</h2>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={handleSaveInvoice}
-                                    className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-bold hover:bg-emerald-600 transition-colors shadow-sm"
-                                >
-                                    Save Invoice
-                                </button>
-                                <button
-                                    onClick={() => handleDraftEmail(selectedClientId, totals.total.toFixed(2), clientProjects.map(p => p.name))}
-                                    className="flex items-center gap-2 px-4 py-2 bg-sky-50 text-sky-600 rounded-lg text-sm font-bold hover:bg-sky-100 transition-colors"
-                                >
-                                    {emailLoading ? <CircleNotch size={16} className="animate-spin" /> : <Envelope size={16} weight="duotone" />}
-                                    Draft with AI
-                                </button>
-                                <button
-                                    onClick={() => window.print()}
-                                    className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors"
-                                >
-                                    Print PDF
-                                </button>
-                                <button onClick={() => setShowPreview(false)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+            {
+                showPreview && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm print:p-0 print:bg-white print:fixed print:inset-0">
+                        <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col print:shadow-none print:max-w-none print:max-h-none print:rounded-none">
+                            <div className="p-6 border-b border-slate-100 flex items-center justify-between print:hidden">
+                                <h2 className="font-bold text-xl">Invoice Preview</h2>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={handleSaveInvoice}
+                                        className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-bold hover:bg-emerald-600 transition-colors shadow-sm"
+                                    >
+                                        Save Invoice
+                                    </button>
+                                    <button
+                                        onClick={() => handleDraftEmail(selectedClientId, totals.total.toFixed(2), clientProjects.map(p => p.name))}
+                                        className="flex items-center gap-2 px-4 py-2 bg-sky-50 text-sky-600 rounded-lg text-sm font-bold hover:bg-sky-100 transition-colors"
+                                    >
+                                        {emailLoading ? <CircleNotch size={16} className="animate-spin" /> : <Envelope size={16} weight="duotone" />}
+                                        Draft with AI
+                                    </button>
+                                    <button
+                                        onClick={() => window.print()}
+                                        className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors"
+                                    >
+                                        Print PDF
+                                    </button>
+                                    <button onClick={() => setShowPreview(false)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                                        <X size={20} weight="bold" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-12 bg-white printable-area font-sans text-slate-900 print:overflow-visible print:h-auto print:p-0">
+                                <div id="invoice-bill" className="max-w-3xl mx-auto print:max-w-none">
+                                    {/* Header */}
+                                    <div className="flex justify-between items-start mb-8 border-b border-slate-200 pb-8">
+                                        <div>
+                                            <div className="flex items-center gap-3 mb-4">
+                                                <div className="w-8 h-8 flex items-center justify-center">
+                                                    <img src="/besveca-logo.svg" alt="BESVECA" className="w-full h-full object-contain" />
+                                                </div>
+                                                <span className="font-bold text-lg tracking-tight">{COMPANY_CONFIG.name}</span>
+                                            </div>
+                                            <div className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                                                {COMPANY_CONFIG.address.map((line, i) => <p key={i}>{line}</p>)}
+                                                <p>{COMPANY_CONFIG.contact.email}</p>
+                                                <p>{COMPANY_CONFIG.contact.phone}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <h2 className="text-xl font-bold text-slate-900 mb-1">INVOICE</h2>
+                                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest text-[#94a3b8]">
+                                                #{draftInvoiceNumber}
+                                            </p>
+                                            <p className="text-[11px] text-slate-500 mt-2">{new Date().toLocaleDateString()}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Bill To & Context */}
+                                    <div className="grid grid-cols-2 gap-8 mb-8">
+                                        <div>
+                                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Bill To</h3>
+                                            <p className="text-sm font-bold text-slate-900">{selectedClientId}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Terms</h3>
+                                            <p className="text-sm font-bold text-slate-900">{getDueDateLabel()}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Line Items Table - Compact Apple Style */}
+                                    <table className="w-full mb-8 border-collapse">
+                                        <thead>
+                                            <tr className="border-b border-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-900">
+                                                <th className="py-2 text-left">Description</th>
+                                                <th className="py-2 text-center w-40">Dates / Duration</th>
+                                                <th className="py-2 text-right w-24">Fee</th>
+                                                <th className="py-2 text-right w-24">Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 text-[11px]">
+                                            {filteredLogs.map((log) => {
+                                                const project = projects.find(p => p.id === log.projectId);
+                                                const amount = log.type === 'TIME' ? (log.hours! * project!.hourlyRate) : log.billableAmount!;
+
+                                                // Display Logic matches handleSaveInvoice
+                                                const description = log.type === 'STAY' ? 'Luxury Stay' : log.description;
+                                                const dates = log.type === 'STAY' && log.checkIn && log.checkOut
+                                                    ? `${log.checkIn} to ${log.checkOut}`
+                                                    : log.type === 'TIME' && log.hours
+                                                        ? `${log.date} (${log.hours}h)`
+                                                        : log.date;
+
+                                                const fee = log.type === 'TIME' ? project?.hourlyRate : log.cost;
+
+                                                return (
+                                                    <tr key={log.id}>
+                                                        <td className="py-2 pr-4 align-top">
+                                                            <span className="font-bold block text-slate-900">{description}</span>
+                                                        </td>
+                                                        <td className="py-2 text-center align-top text-slate-500">
+                                                            {dates}
+                                                        </td>
+                                                        <td className="py-2 text-right align-top text-slate-500">
+                                                            ${fee?.toFixed(2)}
+                                                        </td>
+                                                        <td className="py-2 text-right align-top font-bold text-slate-900">
+                                                            ${amount.toFixed(2)}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+
+                                    {/* Totals Section */}
+                                    <div className="flex justify-end border-t border-slate-200 pt-4">
+                                        <div className="w-48 text-[11px]">
+                                            <div className="flex justify-between mb-1 text-slate-500">
+                                                <span>Subtotal</span>
+                                                <span>${totals.total.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between mb-2 text-slate-500">
+                                                <span>Tax</span>
+                                                <span>$0.00</span>
+                                            </div>
+                                            <div className="flex justify-between font-bold text-sm text-slate-900 border-t border-slate-200 pt-2">
+                                                <span>Total</span>
+                                                <span>${totals.total.toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Payment Schedule Section */}
+                                    {paymentStructure !== 'FULL' && (
+                                        <div className="mt-8 border-t border-slate-200 pt-8">
+                                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Payment Schedule</h3>
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="text-left text-[10px] font-bold text-slate-400 uppercase">
+                                                        <th className="pb-2">Description</th>
+                                                        <th className="pb-2">Due Date</th>
+                                                        <th className="pb-2 text-right">Amount</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {paymentStructure === 'DEPOSIT_50' ? (
+                                                        <>
+                                                            <tr>
+                                                                <td className="py-2 font-medium text-slate-900">Deposit (50%)</td>
+                                                                <td className="py-2 text-slate-500">{depositDate ? new Date(depositDate).toLocaleDateString() : 'Upon Receipt'}</td>
+                                                                <td className="py-2 text-right font-bold text-slate-900">${(totals.total * 0.5).toFixed(2)}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td className="py-2 font-medium text-slate-900">Balance (50%)</td>
+                                                                <td className="py-2 text-slate-500">{balanceDate ? new Date(balanceDate).toLocaleDateString() : 'Upon Arrival'}</td>
+                                                                <td className="py-2 text-right font-bold text-slate-900">${(totals.total - (totals.total * 0.5)).toFixed(2)}</td>
+                                                            </tr>
+                                                        </>
+                                                    ) : null}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+
+                                    {/* Footer */}
+                                    <div className="mt-12 pt-8 border-t border-slate-100 text-center">
+                                        <div className="mb-8 text-[10px] text-slate-500 leading-relaxed font-medium">
+                                            <p className="font-bold uppercase tracking-widest text-slate-400 mb-2">Remit Payment To</p>
+                                            <p>{COMPANY_CONFIG.bank.name}</p>
+                                            <p>{COMPANY_CONFIG.bank.address}</p>
+                                            <p>Routing No: {COMPANY_CONFIG.bank.routing} &nbsp;&bull;&nbsp; Account No: {COMPANY_CONFIG.bank.account}</p>
+                                        </div>
+                                        <p className="text-[10px] text-slate-300">Thank you for your business.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* AI Email Draft Panel */}
+                            {emailDraft && (
+                                <div className="bg-slate-50 p-8 border-t border-slate-100 animate-in slide-in-from-bottom duration-500 print:hidden">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="font-bold flex items-center gap-2 text-slate-900">
+                                            <Sparkle size={16} weight="fill" className="text-amber-500" />
+                                            AI-Powered Email Draft
+                                        </h3>
+                                        <button onClick={() => setEmailDraft(null)} className="text-slate-400 hover:text-slate-600">
+                                            <X size={16} weight="bold" />
+                                        </button>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                                        <pre className="whitespace-pre-wrap font-sans text-sm text-slate-700 leading-relaxed">
+                                            {emailDraft}
+                                        </pre>
+                                    </div>
+                                    <button onClick={() => navigator.clipboard.writeText(emailDraft)} className="mt-4 flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold mx-auto">
+                                        Copy to Clipboard
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Payment Recording Modal */}
+            {
+                paymentModalOpen && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm">
+                        <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden p-8 space-y-6">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-xl font-bold text-slate-900">Record Payment</h3>
+                                <button onClick={() => setPaymentModalOpen(null)} className="p-2 hover:bg-slate-100 rounded-lg">
                                     <X size={20} weight="bold" />
                                 </button>
                             </div>
-                        </div>
 
-                        <div className="flex-1 overflow-y-auto p-12 bg-white printable-area font-sans text-slate-900 print:overflow-visible print:h-auto print:p-0">
-                            <div id="invoice-bill" className="max-w-3xl mx-auto print:max-w-none">
-                                {/* Header */}
-                                <div className="flex justify-between items-start mb-8 border-b border-slate-200 pb-8">
-                                    <div>
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <div className="w-8 h-8 flex items-center justify-center">
-                                                <img src="/besveca-logo.svg" alt="BESVECA" className="w-full h-full object-contain" />
-                                            </div>
-                                            <span className="font-bold text-lg tracking-tight">{COMPANY_CONFIG.name}</span>
-                                        </div>
-                                        <div className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                                            {COMPANY_CONFIG.address.map((line, i) => <p key={i}>{line}</p>)}
-                                            <p>{COMPANY_CONFIG.contact.email}</p>
-                                            <p>{COMPANY_CONFIG.contact.phone}</p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <h2 className="text-xl font-bold text-slate-900 mb-1">INVOICE</h2>
-                                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest text-[#94a3b8]">
-                                            #{draftInvoiceNumber}
-                                        </p>
-                                        <p className="text-[11px] text-slate-500 mt-2">{new Date().toLocaleDateString()}</p>
-                                    </div>
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Amount ($)</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 font-bold focus:ring-2 focus:ring-slate-900"
+                                        value={paymentAmount}
+                                        onChange={(e) => setPaymentAmount(e.target.value)}
+                                    />
                                 </div>
-
-                                {/* Bill To & Context */}
-                                <div className="grid grid-cols-2 gap-8 mb-8">
-                                    <div>
-                                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Bill To</h3>
-                                        <p className="text-sm font-bold text-slate-900">{selectedClientId}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Terms</h3>
-                                        <p className="text-sm font-bold text-slate-900">{getDueDateLabel()}</p>
-                                    </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Date Received</label>
+                                    <input
+                                        type="date"
+                                        className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
+                                        value={paymentDate}
+                                        onChange={(e) => setPaymentDate(e.target.value)}
+                                    />
                                 </div>
-
-                                {/* Line Items Table - Compact Apple Style */}
-                                <table className="w-full mb-8 border-collapse">
-                                    <thead>
-                                        <tr className="border-b border-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-900">
-                                            <th className="py-2 text-left">Description</th>
-                                            <th className="py-2 text-center w-16">Qty</th>
-                                            <th className="py-2 text-right w-24">Unit Price</th>
-                                            <th className="py-2 text-right w-24">Amount</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 text-[11px]">
-                                        {filteredLogs.map((log) => {
-                                            const project = projects.find(p => p.id === log.projectId);
-                                            const amount = log.type === 'TIME' ? (log.hours! * project!.hourlyRate) : log.billableAmount!;
-                                            return (
-                                                <tr key={log.id}>
-                                                    <td className="py-2 pr-4 align-top">
-                                                        <span className="font-bold block text-slate-900">{project?.name}</span>
-                                                        <span className="text-slate-500">{log.description}</span>
-                                                    </td>
-                                                    <td className="py-2 text-center align-top text-slate-500">
-                                                        {log.type === 'TIME' ? log.hours : (log.type === 'STAY' && log.checkIn && log.checkOut && log.cost && Math.abs((log.billableAmount || 0) - (log.cost * Math.ceil(Math.abs(new Date(log.checkOut).getTime() - new Date(log.checkIn).getTime()) / (86400000)))) < 0.1) ? Math.ceil(Math.abs(new Date(log.checkOut).getTime() - new Date(log.checkIn).getTime()) / (86400000)) : 1}
-                                                    </td>
-                                                    <td className="py-2 text-right align-top text-slate-500">
-                                                        ${log.type === 'TIME' ? project?.hourlyRate : log.cost}
-                                                    </td>
-                                                    <td className="py-2 text-right align-top font-bold text-slate-900">
-                                                        ${amount.toFixed(2)}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-
-                                {/* Totals Section */}
-                                <div className="flex justify-end border-t border-slate-200 pt-4">
-                                    <div className="w-48 text-[11px]">
-                                        <div className="flex justify-between mb-1 text-slate-500">
-                                            <span>Subtotal</span>
-                                            <span>${totals.total.toFixed(2)}</span>
-                                        </div>
-                                        <div className="flex justify-between mb-2 text-slate-500">
-                                            <span>Tax</span>
-                                            <span>$0.00</span>
-                                        </div>
-                                        <div className="flex justify-between font-bold text-sm text-slate-900 border-t border-slate-200 pt-2">
-                                            <span>Total</span>
-                                            <span>${totals.total.toFixed(2)}</span>
-                                        </div>
-                                    </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Payment Method</label>
+                                    <select
+                                        className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
+                                        value={paymentMethod}
+                                        onChange={(e) => setPaymentMethod(e.target.value)}
+                                    >
+                                        <option value="Credit Card">Credit Card</option>
+                                        <option value="Bank Transfer">Bank Transfer / ACH</option>
+                                        <option value="Check">Check</option>
+                                        <option value="Cash">Cash</option>
+                                        <option value="Other">Other</option>
+                                    </select>
                                 </div>
-
-                                {/* Footer */}
-                                <div className="mt-12 pt-8 border-t border-slate-100 text-center">
-                                    <div className="mb-8 text-[10px] text-slate-500 leading-relaxed font-medium">
-                                        <p className="font-bold uppercase tracking-widest text-slate-400 mb-2">Remit Payment To</p>
-                                        <p>{COMPANY_CONFIG.bank.name}</p>
-                                        <p>{COMPANY_CONFIG.bank.address}</p>
-                                        <p>Routing No: {COMPANY_CONFIG.bank.routing} &nbsp;&bull;&nbsp; Account No: {COMPANY_CONFIG.bank.account}</p>
-                                    </div>
-                                    <p className="text-[10px] text-slate-300">Thank you for your business.</p>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Note (Optional)</label>
+                                    <input
+                                        type="text"
+                                        className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
+                                        value={paymentNote}
+                                        onChange={(e) => setPaymentNote(e.target.value)}
+                                        placeholder="e.g. Transaction ID"
+                                    />
                                 </div>
                             </div>
-                        </div>
 
-                        {/* AI Email Draft Panel */}
-                        {emailDraft && (
-                            <div className="bg-slate-50 p-8 border-t border-slate-100 animate-in slide-in-from-bottom duration-500 print:hidden">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="font-bold flex items-center gap-2 text-slate-900">
-                                        <Sparkle size={16} weight="fill" className="text-amber-500" />
-                                        AI-Powered Email Draft
-                                    </h3>
-                                    <button onClick={() => setEmailDraft(null)} className="text-slate-400 hover:text-slate-600">
-                                        <X size={16} weight="bold" />
-                                    </button>
-                                </div>
-                                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                                    <pre className="whitespace-pre-wrap font-sans text-sm text-slate-700 leading-relaxed">
-                                        {emailDraft}
-                                    </pre>
-                                </div>
-                                <button onClick={() => navigator.clipboard.writeText(emailDraft)} className="mt-4 flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold mx-auto">
-                                    Copy to Clipboard
-                                </button>
-                            </div>
-                        )}
+                            <button
+                                onClick={handleRecordPayment}
+                                disabled={!paymentAmount}
+                                className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors disabled:opacity-50"
+                            >
+                                Confirm Payment
+                            </button>
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

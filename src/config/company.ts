@@ -9,7 +9,7 @@ export const COMPANY_CONFIG = {
     ],
     contact: {
         email: 'billing@besveca.com', // Assumed, please update
-        phone: '+1 (000) 000-0000'
+        phone: '+1 (310) 717-9946'
     },
     bank: {
         name: 'Wells Fargo Bank',

@@ -29,6 +29,8 @@ export interface LogItem {
   checkOut?: string;
   cleaningFee?: number;
   cleaningCount?: number;
+  poolHeat?: number;
+
 
   billableAmount?: number;
   profit?: number;
@@ -50,6 +52,22 @@ export interface InvoiceItem {
   amount: number;
   type: LogType;
   originalLogId?: string; // Reference to original log
+  dates?: string; // e.g. "2023-10-01 - 2023-10-05" or just date
+}
+
+export interface InvoicePayment {
+  id: string;
+  date: string;
+  amount: number;
+  method?: string;
+  note?: string;
+}
+
+export interface InvoiceSchedule {
+  id: string;
+  label: string; // e.g. "Deposit", "Balance", "Installment 1"
+  date: string;
+  amount: number;
 }
 
 export interface Invoice {
@@ -63,8 +81,10 @@ export interface Invoice {
   subtotal: number;
   tax: number;
   total: number;
-  status: 'DRAFT' | 'SENT' | 'PAID';
+  status: 'DRAFT' | 'SENT' | 'PARTIAL' | 'PAID';
   createdAt: number;
+  payments?: InvoicePayment[];
+  paymentSchedule?: InvoiceSchedule[];
 }
 
 export interface AppState {

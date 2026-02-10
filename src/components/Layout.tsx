@@ -52,7 +52,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
                 <nav className="flex-1 space-y-2">
                     <SidebarItem to="/dashboard" icon={SquaresFour} label="Dashboard" />
-                    <SidebarItem to="/tracker" icon={Timer} label="Tracker" />
+                    <SidebarItem to="/tracker" icon={Timer} label="Guest Folio" />
                     <SidebarItem to="/statements" icon={CreditCard} label="CC Statements" />
                     <SidebarItem to="/invoices" icon={Invoice} label="Invoices" />
                     <SidebarItem to="/projects" icon={UserSquare} label="Guests" />
