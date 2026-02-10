@@ -36,25 +36,37 @@ const Projects: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
+
+        const timeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Request timed out')), 8000)
+        );
+
         try {
             if (editingProject) {
-                await updateProject(editingProject.id, {
-                    name: formData.name,
-                    client: formData.client,
-                    hourlyRate: Number(formData.hourlyRate),
-                    status: formData.status
-                });
+                await Promise.race([
+                    updateProject(editingProject.id, {
+                        name: formData.name,
+                        client: formData.client,
+                        hourlyRate: Number(formData.hourlyRate),
+                        status: formData.status
+                    }),
+                    timeout
+                ]);
             } else {
-                await addProject({
-                    name: formData.name,
-                    client: formData.client,
-                    hourlyRate: Number(formData.hourlyRate),
-                    status: formData.status
-                });
+                await Promise.race([
+                    addProject({
+                        name: formData.name,
+                        client: formData.client,
+                        hourlyRate: Number(formData.hourlyRate),
+                        status: formData.status
+                    }),
+                    timeout
+                ]);
             }
             handleCloseModal();
         } catch (error) {
             console.error('Submit handle error:', error);
+            alert('Operation took too long or failed. Please refresh and try again.');
         } finally {
             setIsSaving(false);
         }

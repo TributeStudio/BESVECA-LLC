@@ -226,14 +226,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return;
         }
 
-        addDoc(collection(db, 'users', state.user.uid, 'projects'), newProject)
-            .then((docRef) => console.log('Project synced to server:', docRef.id))
-            .catch((error) => {
-                console.error('Firestore Add Project Error:', error);
-                if (error.code === 'permission-denied') {
-                    alert('Save Failed: You do not have permission to create projects.');
-                }
-            });
+        try {
+            const docRef = await addDoc(collection(db, 'users', state.user.uid, 'projects'), newProject);
+            console.log('Project synced to server:', docRef.id);
+        } catch (error: any) {
+            console.error('Firestore Add Project Error:', error);
+            if (error.code === 'permission-denied') {
+                alert('Save Failed: You do not have permission to create projects.');
+                throw error; // Re-throw so UI knows it failed
+            }
+        }
     };
 
     const addLog = async (logData: Omit<LogItem, 'id' | 'createdAt'>) => {
@@ -252,12 +254,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return;
         }
 
-        addDoc(collection(db, 'users', state.user.uid, 'logs'), newLog)
-            .then(() => console.log('Log synced to server'))
-            .catch((error) => {
-                console.error('Firestore Add Log Error:', error);
-                alert(`Error syncing log: ${error.message}`);
-            });
+        try {
+            await addDoc(collection(db, 'users', state.user.uid, 'logs'), newLog);
+            console.log('Log synced to server');
+        } catch (error: any) {
+            console.error('Firestore Add Log Error:', error);
+            alert(`Error syncing log: ${error.message}`);
+            throw error;
+        }
     };
 
     const deleteLog = async (id: string) => {
@@ -318,11 +322,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return;
         }
 
-        addDoc(collection(db, 'users', state.user.uid, 'invoices'), newInvoice)
-            .catch((error) => {
-                console.error('Firestore Add Invoice Error:', error);
-                alert(`Error saving invoice: ${error.message}`);
-            });
+        try {
+            await addDoc(collection(db, 'users', state.user.uid, 'invoices'), newInvoice);
+        } catch (error: any) {
+            console.error('Firestore Add Invoice Error:', error);
+            alert(`Error saving invoice: ${error.message}`);
+            throw error;
+        }
     };
 
     const updateInvoice = async (id: string, updates: Partial<Invoice>) => {
