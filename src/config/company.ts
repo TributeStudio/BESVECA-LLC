@@ -12,10 +12,10 @@ export const COMPANY_CONFIG = {
         phone: '+1 (000) 000-0000'
     },
     bank: {
-        name: 'BANK NAME (Update in src/config/company.ts)',
-        address: 'BANK ADDRESS',
-        routing: '000000000',
-        account: '00000000',
+        name: 'Wells Fargo Bank',
+        address: '333 Market Street, San Francisco, CA 94105',
+        routing: '121042882',
+        account: '3782655249',
         beneficiary: 'BESVECA, LLC'
     },
     theme: {
