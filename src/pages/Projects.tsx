@@ -227,16 +227,7 @@ const Projects: React.FC = () => {
                                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                                 />
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nightly Rate ($)</label>
-                                <input
-                                    type="number"
-                                    required
-                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
-                                    value={formData.hourlyRate}
-                                    onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
-                                />
-                            </div>
+
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Status</label>
                                 <select
