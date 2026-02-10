@@ -4,6 +4,9 @@ export interface Project {
   id: string;
   name: string;
   client: string;
+  email?: string;
+  phone?: string;
+  address?: string;
   hourlyRate: number;
   status: 'ACTIVE' | 'ARCHIVED' | 'COMPLETED';
   createdAt: number;

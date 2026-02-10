@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Plus, UserSquare, User, Pencil } from '@phosphor-icons/react';
+import { Plus, UserSquare, User, Pencil, Envelope, Phone, MapPin } from '@phosphor-icons/react';
 import type { Project } from '../types';
 
 const Projects: React.FC = () => {
@@ -10,6 +10,9 @@ const Projects: React.FC = () => {
     const [formData, setFormData] = useState({
         name: '',
         client: '',
+        email: '',
+        phone: '',
+        address: '',
         hourlyRate: '150',
         status: 'ACTIVE' as 'ACTIVE' | 'ARCHIVED' | 'COMPLETED'
     });
@@ -21,6 +24,9 @@ const Projects: React.FC = () => {
         setFormData({
             name: project.name,
             client: project.client,
+            email: project.email || '',
+            phone: project.phone || '',
+            address: project.address || '',
             hourlyRate: project.hourlyRate.toString(),
             status: project.status
         });
@@ -30,7 +36,7 @@ const Projects: React.FC = () => {
     const handleCloseModal = () => {
         setShowAddModal(false);
         setEditingProject(null);
-        setFormData({ name: '', client: '', hourlyRate: '150', status: 'ACTIVE' });
+        setFormData({ name: '', client: '', email: '', phone: '', address: '', hourlyRate: '150', status: 'ACTIVE' });
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -47,6 +53,9 @@ const Projects: React.FC = () => {
                     updateProject(editingProject.id, {
                         name: formData.name,
                         client: formData.client,
+                        email: formData.email,
+                        phone: formData.phone,
+                        address: formData.address,
                         hourlyRate: Number(formData.hourlyRate),
                         status: formData.status
                     }),
@@ -57,6 +66,9 @@ const Projects: React.FC = () => {
                     addProject({
                         name: formData.name,
                         client: formData.client,
+                        email: formData.email,
+                        phone: formData.phone,
+                        address: formData.address,
                         hourlyRate: Number(formData.hourlyRate),
                         status: formData.status
                     }),
@@ -118,6 +130,27 @@ const Projects: React.FC = () => {
                             <User size={14} weight="duotone" className="opacity-50" /> {project.client}
                         </p>
 
+                        <div className="space-y-2 mb-6">
+                            {project.email && (
+                                <div className="flex items-center gap-2 text-xs text-slate-500">
+                                    <Envelope size={14} weight="duotone" className="text-slate-400" />
+                                    {project.email}
+                                </div>
+                            )}
+                            {project.phone && (
+                                <div className="flex items-center gap-2 text-xs text-slate-500">
+                                    <Phone size={14} weight="duotone" className="text-slate-400" />
+                                    {project.phone}
+                                </div>
+                            )}
+                            {project.address && (
+                                <div className="flex items-center gap-2 text-xs text-slate-500">
+                                    <MapPin size={14} weight="duotone" className="text-slate-400" />
+                                    <span className="truncate">{project.address}</span>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="grid grid-cols-2 gap-4 pt-6 border-t border-slate-50">
                             <div>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Rate</p>
@@ -154,17 +187,49 @@ const Projects: React.FC = () => {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Property</label>
-                                <select
-                                    required
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Email</label>
+                                <input
+                                    type="email"
+                                    placeholder="guest@example.com"
                                     className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
-                                    value={formData.client}
-                                    onChange={(e) => setFormData({ ...formData, client: e.target.value })}
-                                >
-                                    <option value="">Select Property...</option>
-                                    <option value="BESVECA">BESVECA</option>
-                                    <option value="Skyhouse">Skyhouse</option>
-                                </select>
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Phone</label>
+                                    <input
+                                        type="tel"
+                                        placeholder="(555) 123-4567"
+                                        className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
+                                        value={formData.phone}
+                                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Property</label>
+                                    <select
+                                        required
+                                        className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
+                                        value={formData.client}
+                                        onChange={(e) => setFormData({ ...formData, client: e.target.value })}
+                                    >
+                                        <option value="">Select Property...</option>
+                                        <option value="BESVECA">BESVECA</option>
+                                        <option value="Skyhouse">Skyhouse</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Address</label>
+                                <input
+                                    type="text"
+                                    placeholder="123 Guest St, City, State"
+                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
+                                    value={formData.address}
+                                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                                />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nightly Rate ($)</label>
