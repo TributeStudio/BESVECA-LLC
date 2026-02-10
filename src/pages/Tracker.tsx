@@ -74,9 +74,7 @@ const Tracker: React.FC = () => {
                 logData.checkIn = formData.checkIn;
                 logData.checkOut = formData.checkOut;
                 logData.billableAmount = billableAmount;
-                logData.cost = Number(formData.rate); // Store rate in cost for reference? Or better relies on billableAmount.
-                // Actually let's store rate in 'cost' field purely for record keeping if needed, or just billableAmount.
-                // Let's rely on billableAmount for invoice.
+                logData.cost = Number(formData.rate);
             }
 
             if (editingLogId) {
@@ -86,12 +84,12 @@ const Tracker: React.FC = () => {
                 await addLog(logData);
             }
 
-            setIsLoading(false);
             setSuccess(true);
             resetForm();
             setTimeout(() => setSuccess(false), 3000);
         } catch (error) {
             console.error(error);
+        } finally {
             setIsLoading(false);
         }
     };
