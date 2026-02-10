@@ -69,13 +69,25 @@ const Tracker: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.projectId) return;
+
+        if (!formData.projectId) {
+            alert("Please select a property.");
+            return;
+        }
+
+        if (isLoading) return; // Prevent double submission
 
         setIsLoading(true);
 
-        const timeout = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Request timed out')), 8000)
-        );
+        // Watchdog: Force-reset loading state if operation hangs for more than 8 seconds
+        // This runs independently of the async flow below
+        const watchdog = setTimeout(() => {
+            if (isLoading) {
+                console.warn('Watchdog triggered: Operation timed out.');
+                setIsLoading(false);
+                alert('Request timed out. Please check your connection and try again.');
+            }
+        }, 8000);
 
         try {
             const logData: any = {
@@ -103,16 +115,10 @@ const Tracker: React.FC = () => {
             }
 
             if (editingLogId) {
-                await Promise.race([
-                    updateLog(editingLogId, logData),
-                    timeout
-                ]);
+                await updateLog(editingLogId, logData);
                 setEditingLogId(null);
             } else {
-                await Promise.race([
-                    addLog(logData),
-                    timeout
-                ]);
+                await addLog(logData);
             }
 
             setSuccess(true);
@@ -120,8 +126,9 @@ const Tracker: React.FC = () => {
             setTimeout(() => setSuccess(false), 3000);
         } catch (error) {
             console.error('Tracker submit error:', error);
-            alert('Operation took too long or failed. Please refresh and try again.');
+            alert('An error occurred while saving. Please try again.');
         } finally {
+            clearTimeout(watchdog);
             setIsLoading(false);
         }
     };
