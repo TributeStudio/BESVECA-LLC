@@ -275,11 +275,11 @@ const Invoices: React.FC = () => {
             dueDate: calculateDueDate(),
             terms: paymentTerms,
             items: invoiceItems,
-            paymentSchedule: paymentSchedule.length > 0 ? paymentSchedule : undefined,
+            paymentSchedule: paymentSchedule.length > 0 ? paymentSchedule : [],
             subtotal: totals.subtotal,
             tax: totals.tax,
             total: totals.total,
-            payments: initialPaymentsList.length > 0 ? initialPaymentsList : undefined,
+            payments: initialPaymentsList.length > 0 ? initialPaymentsList : [],
             status
         };
 
@@ -301,6 +301,23 @@ const Invoices: React.FC = () => {
         } finally {
             setEmailLoading(false);
         }
+    };
+
+    const handleSendEmail = (invoice: any) => {
+        // Find Email
+        const project = projects.find(p => p.client === invoice.clientId && p.email);
+        const email = project?.email;
+
+        if (!email) {
+            alert(`No email found for guest "${invoice.clientId}". Please add an email in the Guest Folio.`);
+            return;
+        }
+
+        const subject = `Invoice ${invoice.invoiceNumber} from BESVECA, LLC`;
+        const body = `Hi ${invoice.clientId.split(' ')[0]},\n\nPlease find attached invoice ${invoice.invoiceNumber} for your recent stay.\n\nThank you,\nBESVECA, LLC`;
+
+        const mailto = `mailto:${email}?cc=jessica@tribute.studio&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.open(mailto, '_blank');
     };
 
     const handleRecordPayment = async () => {
@@ -720,14 +737,21 @@ const Invoices: React.FC = () => {
                                                     </button>
                                                 )}
                                                 <button
-                                                    onClick={() => {
-                                                        const projectNames = Array.from(new Set(invoice.items.map(i => i.description.split(' - ')[0])));
-                                                        handleDraftEmail(invoice.clientId, invoice.total.toFixed(2), projectNames);
-                                                    }}
+                                                    onClick={() => handleSendEmail(invoice)}
                                                     className="text-slate-400 hover:text-slate-900 p-1.5"
-                                                    title="Draft Email"
+                                                    title="Email Invoice"
                                                 >
                                                     <Envelope size={18} weight="duotone" />
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        const projectNames = Array.from(new Set(invoice.items.map((i: any) => i.description.split(' - ')[0])));
+                                                        handleDraftEmail(invoice.clientId, invoice.total.toFixed(2), projectNames as string[]);
+                                                    }}
+                                                    className="text-slate-400 hover:text-slate-900 p-1.5"
+                                                    title="Draft Email with AI"
+                                                >
+                                                    <Sparkle size={18} weight="duotone" />
                                                 </button>
                                             </td>
                                         </tr>
