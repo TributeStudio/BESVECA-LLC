@@ -860,10 +860,19 @@ const Invoices: React.FC = () => {
 
                                                 const fee = log.type === 'TIME' ? project?.hourlyRate : log.cost;
 
+                                                const nights = log.type === 'STAY' && log.checkIn && log.checkOut
+                                                    ? Math.ceil(Math.abs(new Date(log.checkOut).getTime() - new Date(log.checkIn).getTime()) / (1000 * 60 * 60 * 24))
+                                                    : 0;
+
                                                 return (
                                                     <tr key={log.id}>
                                                         <td className="py-2 pr-4 align-top">
                                                             <span className="font-bold block text-slate-900">{description}</span>
+                                                            {log.type === 'STAY' && nights > 0 && (
+                                                                <span className="block text-[10px] text-slate-500 mt-0.5">
+                                                                    {nights} Night{nights !== 1 ? 's' : ''}
+                                                                </span>
+                                                            )}
                                                         </td>
                                                         <td className="py-2 text-center align-top text-slate-500">
                                                             {dates}
