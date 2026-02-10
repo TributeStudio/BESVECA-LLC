@@ -67,6 +67,11 @@ const Tracker: React.FC = () => {
         if (!formData.projectId) return;
 
         setIsLoading(true);
+
+        const timeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Request timed out')), 8000)
+        );
+
         try {
             const logData: any = {
                 projectId: formData.projectId,
@@ -91,17 +96,24 @@ const Tracker: React.FC = () => {
             }
 
             if (editingLogId) {
-                await updateLog(editingLogId, logData);
+                await Promise.race([
+                    updateLog(editingLogId, logData),
+                    timeout
+                ]);
                 setEditingLogId(null);
             } else {
-                await addLog(logData);
+                await Promise.race([
+                    addLog(logData),
+                    timeout
+                ]);
             }
 
             setSuccess(true);
             resetForm();
             setTimeout(() => setSuccess(false), 3000);
         } catch (error) {
-            console.error(error);
+            console.error('Tracker submit error:', error);
+            alert('Operation took too long or failed. Please refresh and try again.');
         } finally {
             setIsLoading(false);
         }
@@ -272,6 +284,11 @@ const Tracker: React.FC = () => {
                                             className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
                                         />
                                     </div>
+                                    {nights > 0 && (
+                                        <div className="bg-slate-100/50 p-2 rounded-lg text-center">
+                                            <p className="text-sm font-semibold text-slate-700">{nights} Night{nights !== 1 ? 's' : ''}</p>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="bg-slate-50 p-4 rounded-xl space-y-4">
                                     <div className="flex gap-4">
@@ -307,9 +324,13 @@ const Tracker: React.FC = () => {
                                             className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
                                         />
                                     </div>
-                                    {formData.pricingMode === 'NIGHTLY' && nights > 0 && (
+                                    {nights > 0 && (
                                         <div className="text-right text-sm text-slate-500">
-                                            {nights} nights x ${Number(formData.rate).toFixed(2)} = <span className="font-bold text-slate-900">${billableAmount.toFixed(2)}</span>
+                                            {formData.pricingMode === 'NIGHTLY' ? (
+                                                <>{nights} nights x ${Number(formData.rate).toFixed(2)} = <span className="font-bold text-slate-900">${billableAmount.toFixed(2)}</span></>
+                                            ) : (
+                                                <>${billableAmount.toFixed(2)} total ÷ {nights} nights = <span className="font-bold text-slate-900">${(billableAmount / nights).toFixed(2)} / night</span></>
+                                            )}
                                         </div>
                                     )}
                                 </div>
