@@ -32,10 +32,8 @@ const Login: React.FC = () => {
 
             <div className="max-w-md w-full relative">
                 <div className="text-center mb-10">
-                    <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-2xl mb-6">
-                        <span className="text-slate-950 font-bold text-4xl">T</span>
-                    </div>
-                    <h1 className="text-4xl text-white mb-2 tracking-tight">Tribute Studio</h1>
+                    <img src="/besveca-logo.svg" alt="BESVECA, LLC" className="w-24 h-24 mx-auto mb-6" />
+                    <h1 className="text-4xl text-white mb-2 tracking-tight">BESVECA, LLC</h1>
                     <p className="text-slate-400 font-sans tracking-wide">Business Intelligence for the Creative Mind</p>
                 </div>
 
