@@ -64,8 +64,8 @@ const Projects: React.FC = () => {
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
-                    <h1 className="text-4xl font-bold text-slate-900 mb-2">Guests Portfolio</h1>
-                    <p className="text-slate-500">Manage your clients and active engagements.</p>
+                    <h1 className="text-4xl font-bold text-slate-900 mb-2">Properties & Guests</h1>
+                    <p className="text-slate-500">Manage your properties and guest details.</p>
                 </div>
                 <button
                     onClick={() => setShowAddModal(true)}
@@ -109,7 +109,7 @@ const Projects: React.FC = () => {
                         <div className="grid grid-cols-2 gap-4 pt-6 border-t border-slate-50">
                             <div>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Rate</p>
-                                <p className="text-lg font-bold text-slate-900 tabular-nums">${project.hourlyRate}<span className="text-sm font-normal text-slate-400">/hr</span></p>
+                                <p className="text-lg font-bold text-slate-900 tabular-nums">${project.hourlyRate}<span className="text-sm font-normal text-slate-400">/night</span></p>
                             </div>
                             <div>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Created</p>
@@ -142,18 +142,20 @@ const Projects: React.FC = () => {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Client Name</label>
-                                <input
-                                    type="text"
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Property</label>
+                                <select
                                     required
-                                    placeholder="e.g. Acme Corp"
                                     className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
                                     value={formData.client}
                                     onChange={(e) => setFormData({ ...formData, client: e.target.value })}
-                                />
+                                >
+                                    <option value="">Select Property...</option>
+                                    <option value="BESVECA">BESVECA</option>
+                                    <option value="Skyhouse">Skyhouse</option>
+                                </select>
                             </div>
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Hourly Rate ($)</label>
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nightly Rate ($)</label>
                                 <input
                                     type="number"
                                     required
