@@ -5,9 +5,11 @@ import type { LogItem, LogType } from '../types';
 
 const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-        return `${parts[1]}/${parts[2]}/${parts[0]}`;
+    // Handle YYYY-MM-DD
+    const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+        const [_, year, month, day] = match;
+        return `${month}/${day}/${year}`;
     }
     return dateStr;
 };
@@ -466,7 +468,7 @@ const Tracker: React.FC = () => {
                 </div >
 
                 <div className="lg:col-span-2 space-y-6">
-                    <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest px-2">Recent Logs</h2>
+                    <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest px-2">Guest History</h2>
                     <div className="space-y-4">
                         {logs.slice(0, 10).map((log) => {
                             const project = projects.find(p => p.id === log.projectId);
