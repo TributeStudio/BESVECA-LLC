@@ -24,6 +24,19 @@ const Tracker: React.FC = () => {
         pricingMode: 'NIGHTLY' as 'NIGHTLY' | 'FLAT',
     });
 
+    const [selectedProperty, setSelectedProperty] = useState<string>('');
+
+    // Derived state for dropdowns
+    const uniqueProperties = React.useMemo(() => {
+        const props = new Set(projects.map(p => p.client).filter(Boolean));
+        return Array.from(props).sort();
+    }, [projects]);
+
+    const filteredGuests = React.useMemo(() => {
+        if (!selectedProperty) return [];
+        return projects.filter(p => p.client === selectedProperty);
+    }, [projects, selectedProperty]);
+
     // Helper: Calculate nights
     const nights = React.useMemo(() => {
         if (!formData.checkIn || !formData.checkOut) return 0;
@@ -108,11 +121,18 @@ const Tracker: React.FC = () => {
             rate: '',
             pricingMode: 'NIGHTLY',
         });
+        setSelectedProperty('');
     };
 
     const handleEdit = (log: LogItem) => {
         setEditingLogId(log.id);
         setActiveTab(log.type);
+
+        const project = projects.find(p => p.id === log.projectId);
+        if (project) {
+            setSelectedProperty(project.client);
+        }
+
         setFormData({
             projectId: log.projectId,
             client: log.client || '',
@@ -185,35 +205,52 @@ const Tracker: React.FC = () => {
                     )}
 
                     <form onSubmit={handleSubmit} className="p-8 space-y-6">
-                        {/* Common Fields */}
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Property (Project)</label>
-                            <select
-                                required
-                                value={formData.projectId}
-                                onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
-                                className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
-                            >
-                                <option value="">Select Property...</option>
-                                {projects.map(p => (
-                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                ))}
-                            </select>
+                        {/* Common Fields: Property & Guest Selection */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Property</label>
+                                <select
+                                    required
+                                    value={selectedProperty}
+                                    onChange={(e) => {
+                                        setSelectedProperty(e.target.value);
+                                        setFormData(prev => ({ ...prev, projectId: '', client: '' }));
+                                    }}
+                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
+                                >
+                                    <option value="">Select Property...</option>
+                                    {uniqueProperties.map(prop => (
+                                        <option key={prop} value={prop}>{prop}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Guest</label>
+                                <select
+                                    required
+                                    value={formData.projectId}
+                                    onChange={(e) => {
+                                        const projectId = e.target.value;
+                                        const project = projects.find(p => p.id === projectId);
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            projectId,
+                                            client: project ? project.name : ''
+                                        }));
+                                    }}
+                                    disabled={!selectedProperty}
+                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900 disabled:opacity-50"
+                                >
+                                    <option value="">Select Guest...</option>
+                                    {filteredGuests.map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
 
                         {activeTab === 'STAY' && (
                             <>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Guest Name</label>
-                                    <input
-                                        type="text"
-                                        placeholder="e.g. John Doe & Family"
-                                        required
-                                        value={formData.client}
-                                        onChange={(e) => setFormData({ ...formData, client: e.target.value })}
-                                        className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
-                                    />
-                                </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Check-in</label>
