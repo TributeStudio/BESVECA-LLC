@@ -213,7 +213,7 @@ const Invoices: React.FC = () => {
 
             return {
                 description: log.type === 'STAY'
-                    ? `Luxury Stay`
+                    ? `Guest Stay`
                     : log.description,
                 quantity,
                 rate,
@@ -827,7 +827,7 @@ const Invoices: React.FC = () => {
                                                 const amount = log.type === 'TIME' ? (log.hours! * project!.hourlyRate) : log.billableAmount!;
 
                                                 // Display Logic matches handleSaveInvoice
-                                                const description = log.type === 'STAY' ? 'Luxury Stay' : log.description;
+                                                const description = log.type === 'STAY' ? 'Guest Stay' : log.description;
                                                 const dates = log.type === 'STAY' && log.checkIn && log.checkOut
                                                     ? `${formatDate(log.checkIn)} to ${formatDate(log.checkOut)}`
                                                     : log.type === 'TIME' && log.hours

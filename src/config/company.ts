@@ -4,11 +4,11 @@ export const COMPANY_CONFIG = {
     logoInitials: 'B',
     invoicePrefix: 'B', // Generates B-CLIENT-2405-01
     address: [
-        'ADDR LINE 1 (Update in src/config/company.ts)',
-        'CITY, STATE ZIP'
+        '2456 South Calle Palo Fierro',
+        'Palm Springs, CA 92264'
     ],
     contact: {
-        email: 'billing@besveca.com', // Assumed, please update
+        email: 'jessica@tribute.studio',
         phone: '+1 (310) 717-9946'
     },
     bank: {
