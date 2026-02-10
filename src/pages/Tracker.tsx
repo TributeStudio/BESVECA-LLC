@@ -22,6 +22,8 @@ const Tracker: React.FC = () => {
         markupPercent: '20',
         rate: '', // Nightly Rate or Flat Fee
         pricingMode: 'NIGHTLY' as 'NIGHTLY' | 'FLAT',
+        cleaningCount: '1',
+        cleaningFee: '275',
     });
 
     const [selectedProperty, setSelectedProperty] = useState<string>('');
@@ -52,11 +54,14 @@ const Tracker: React.FC = () => {
             return (Number(formData.cost) * (1 + Number(formData.markupPercent) / 100));
         }
         if (activeTab === 'STAY') {
-            if (formData.pricingMode === 'FLAT') return Number(formData.rate);
-            return Number(formData.rate) * nights;
+            const stayTotal = formData.pricingMode === 'FLAT'
+                ? Number(formData.rate)
+                : Number(formData.rate) * nights;
+            const cleaningTotal = Number(formData.cleaningCount) * Number(formData.cleaningFee);
+            return stayTotal + cleaningTotal;
         }
         return 0;
-    }, [activeTab, formData.cost, formData.markupPercent, formData.rate, formData.pricingMode, nights]);
+    }, [activeTab, formData.cost, formData.markupPercent, formData.rate, formData.pricingMode, nights, formData.cleaningCount, formData.cleaningFee]);
 
     const profit = activeTab === 'EXPENSE'
         ? (billableAmount - Number(formData.cost))
@@ -93,6 +98,8 @@ const Tracker: React.FC = () => {
                 logData.checkOut = formData.checkOut;
                 logData.billableAmount = billableAmount;
                 logData.cost = Number(formData.rate);
+                logData.cleaningCount = Number(formData.cleaningCount);
+                logData.cleaningFee = Number(formData.cleaningFee);
             }
 
             if (editingLogId) {
@@ -132,6 +139,8 @@ const Tracker: React.FC = () => {
             markupPercent: '20',
             rate: '',
             pricingMode: 'NIGHTLY',
+            cleaningCount: '1',
+            cleaningFee: '275',
         });
         setSelectedProperty('');
     };
@@ -159,6 +168,8 @@ const Tracker: React.FC = () => {
                 ? (log.billableAmount! / Math.max(1, Math.ceil((new Date(log.checkOut).getTime() - new Date(log.checkIn).getTime()) / (86400000)))).toFixed(2) // Approximate rate if nightly
                 : log.billableAmount?.toString() || '',
             pricingMode: 'FLAT', // Default to flat when editing legacy or simplified
+            cleaningCount: log.cleaningCount?.toString() || '1',
+            cleaningFee: log.cleaningFee?.toString() || '275',
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -327,12 +338,42 @@ const Tracker: React.FC = () => {
                                     {nights > 0 && (
                                         <div className="text-right text-sm text-slate-500">
                                             {formData.pricingMode === 'NIGHTLY' ? (
-                                                <>{nights} nights x ${Number(formData.rate).toFixed(2)} = <span className="font-bold text-slate-900">${billableAmount.toFixed(2)}</span></>
+                                                <>{nights} nights x ${Number(formData.rate).toFixed(2)}</>
                                             ) : (
-                                                <>${billableAmount.toFixed(2)} total ÷ {nights} nights = <span className="font-bold text-slate-900">${(billableAmount / nights).toFixed(2)} / night</span></>
+                                                <>${Number(formData.rate).toFixed(2)} total</>
                                             )}
+                                            {Number(formData.cleaningCount) > 0 && (
+                                                <> + {formData.cleaningCount} clean(s) x ${Number(formData.cleaningFee).toFixed(2)}</>
+                                            )}
+                                            = <span className="font-bold text-slate-900">${billableAmount.toFixed(2)}</span>
                                         </div>
                                     )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Cleanings</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="1"
+                                            required
+                                            value={formData.cleaningCount}
+                                            onChange={(e) => setFormData({ ...formData, cleaningCount: e.target.value })}
+                                            className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Fee per Cleaning ($)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            required
+                                            value={formData.cleaningFee}
+                                            onChange={(e) => setFormData({ ...formData, cleaningFee: e.target.value })}
+                                            className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
+                                        />
+                                    </div>
                                 </div>
                             </>
                         )}

@@ -27,6 +27,8 @@ export interface LogItem {
   // Stay specific
   checkIn?: string;
   checkOut?: string;
+  cleaningFee?: number;
+  cleaningCount?: number;
 
   billableAmount?: number;
   profit?: number;
