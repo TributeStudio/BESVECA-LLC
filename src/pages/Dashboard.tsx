@@ -15,8 +15,12 @@ import {
     ArrowUpRight,
     UserSquare,
     House,
-    Tag
+    Tag,
+    CalendarCheck,
+    WarningCircle,
+    FileText,
 } from '@phosphor-icons/react';
+import type { Invoice, InvoiceSchedule } from '../types';
 
 type StatCardProps = {
     title: string;
@@ -30,7 +34,44 @@ const toneClasses: Record<string, string> = {
     emerald: 'bg-emerald-50 text-emerald-700',
     sky: 'bg-sky-50 text-sky-700',
     amber: 'bg-amber-50 text-amber-700',
+    red: 'bg-red-50 text-red-700',
     slate: 'bg-slate-100 text-slate-700',
+};
+
+const LONG_STAY_AGREEMENT_NIGHTS = 29;
+const DAY_MS = 86400000;
+
+type ScheduledPayment = {
+    invoice: Invoice;
+    schedule: InvoiceSchedule;
+    paidThroughSchedule: boolean;
+    dueInDays: number;
+};
+
+const formatCurrency = (amount: number) =>
+    amount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
+const formatDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) return `${parts[1]}/${parts[2]}/${parts[0]}`;
+    return dateStr;
+};
+
+const getNights = (checkIn?: string, checkOut?: string) => {
+    if (!checkIn || !checkOut) return 0;
+    return Math.max(0, Math.ceil(Math.abs(new Date(checkOut).getTime() - new Date(checkIn).getTime()) / DAY_MS));
+};
+
+const getPaidAmount = (invoice: Invoice) =>
+    (invoice.payments || []).reduce((sum, payment) => sum + payment.amount, 0);
+
+const getPaymentDueInDays = (date: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = new Date(`${date}T12:00:00`);
+    due.setHours(0, 0, 0, 0);
+    return Math.ceil((due.getTime() - today.getTime()) / DAY_MS);
 };
 
 const StatCard = ({ title, value, icon: Icon, color, note }: StatCardProps) => (
@@ -49,7 +90,7 @@ const StatCard = ({ title, value, icon: Icon, color, note }: StatCardProps) => (
 );
 
 const Dashboard: React.FC = () => {
-    const { logs, projects } = useApp();
+    const { logs, projects, invoices } = useApp();
 
     const stats = useMemo(() => {
         let totalRevenue = 0;
@@ -82,6 +123,79 @@ const Dashboard: React.FC = () => {
         const chartData = Object.entries(projectRevenueMap).map(([name, value]) => ({ name, value }));
         return { totalRevenue, activeGuests: projects.length, chartData, stayCount, expenseCount };
     }, [logs, projects]);
+
+    const upcomingPayments = useMemo(() => {
+        const payments: ScheduledPayment[] = [];
+
+        invoices
+            .filter(invoice => invoice.status !== 'PAID')
+            .forEach(invoice => {
+                const paidAmount = getPaidAmount(invoice);
+                let scheduledTotal = 0;
+
+                (invoice.paymentSchedule || []).forEach(schedule => {
+                    scheduledTotal += schedule.amount;
+                    const paidThroughSchedule = paidAmount >= scheduledTotal - 0.01;
+                    if (!paidThroughSchedule) {
+                        payments.push({
+                            invoice,
+                            schedule,
+                            paidThroughSchedule,
+                            dueInDays: getPaymentDueInDays(schedule.date),
+                        });
+                    }
+                });
+
+                if ((invoice.paymentSchedule || []).length === 0) {
+                    const balance = invoice.total - paidAmount;
+                    if (balance > 0.01) {
+                        payments.push({
+                            invoice,
+                            schedule: {
+                                id: `${invoice.id}-balance`,
+                                label: 'Balance due',
+                                date: invoice.dueDate,
+                                amount: balance,
+                            },
+                            paidThroughSchedule: false,
+                            dueInDays: getPaymentDueInDays(invoice.dueDate),
+                        });
+                    }
+                }
+            });
+
+        return payments
+            .sort((a, b) => a.schedule.date.localeCompare(b.schedule.date))
+            .slice(0, 5);
+    }, [invoices]);
+
+    const longStayItems = useMemo(() => {
+        return logs
+            .filter(log => log.type === 'STAY' && getNights(log.checkIn, log.checkOut) > LONG_STAY_AGREEMENT_NIGHTS)
+            .map(log => {
+                const project = projects.find(item => item.id === log.projectId);
+                const invoice = invoices.find(item =>
+                    item.items.some(invoiceItem => invoiceItem.originalLogId === log.id)
+                );
+
+                return {
+                    log,
+                    guestName: log.client || project?.name || 'Guest',
+                    propertyName: project?.client || 'BESVECA',
+                    nights: getNights(log.checkIn, log.checkOut),
+                    invoice,
+                };
+            })
+            .sort((a, b) => (a.log.checkIn || '').localeCompare(b.log.checkIn || ''))
+            .slice(0, 5);
+    }, [invoices, logs, projects]);
+
+    const outstandingBalance = useMemo(() =>
+        invoices
+            .filter(invoice => invoice.status !== 'PAID')
+            .reduce((sum, invoice) => sum + Math.max(0, invoice.total - getPaidAmount(invoice)), 0),
+        [invoices]
+    );
 
     return (
         <div className="space-y-8">
@@ -119,6 +233,88 @@ const Dashboard: React.FC = () => {
                     color="slate"
                     note="logged"
                 />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <div className="flex items-start justify-between gap-4 mb-5">
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-900">Upcoming Payments</h2>
+                            <p className="text-sm text-slate-500 mt-1">{formatCurrency(outstandingBalance)} still open across unpaid invoices.</p>
+                        </div>
+                        <div className="p-3 rounded-lg bg-emerald-50 text-emerald-700">
+                            <CalendarCheck size={22} weight="duotone" />
+                        </div>
+                    </div>
+
+                    {upcomingPayments.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-slate-200 p-6 text-sm text-slate-500">
+                            No scheduled payments are currently open.
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-slate-100">
+                            {upcomingPayments.map(payment => {
+                                const isOverdue = payment.dueInDays < 0;
+                                const dueLabel = isOverdue
+                                    ? `${Math.abs(payment.dueInDays)}d overdue`
+                                    : payment.dueInDays === 0
+                                        ? 'Due today'
+                                        : `Due in ${payment.dueInDays}d`;
+
+                                return (
+                                    <div key={`${payment.invoice.id}-${payment.schedule.id}`} className="py-4 flex items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-sm font-bold text-slate-900">{payment.invoice.clientId}</p>
+                                            <p className="text-xs text-slate-500">{payment.schedule.label} · {formatDate(payment.schedule.date)}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-sm font-bold text-slate-900">{formatCurrency(payment.schedule.amount)}</p>
+                                            <span className={`inline-flex mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${isOverdue ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-600'}`}>
+                                                {dueLabel}
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </section>
+
+                <section className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <div className="flex items-start justify-between gap-4 mb-5">
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-900">Long-Stay Agreements</h2>
+                            <p className="text-sm text-slate-500 mt-1">Stays over {LONG_STAY_AGREEMENT_NIGHTS} nights need an agreement before guest send-out.</p>
+                        </div>
+                        <div className="p-3 rounded-lg bg-amber-50 text-amber-700">
+                            <FileText size={22} weight="duotone" />
+                        </div>
+                    </div>
+
+                    {longStayItems.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-slate-200 p-6 text-sm text-slate-500">
+                            No long-stay agreements are currently needed.
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-slate-100">
+                            {longStayItems.map(item => {
+                                const hasSchedule = Boolean(item.invoice?.paymentSchedule?.length);
+                                return (
+                                    <div key={item.log.id} className="py-4 flex items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-sm font-bold text-slate-900">{item.guestName}</p>
+                                            <p className="text-xs text-slate-500">{item.propertyName} · {item.nights} nights · {formatDate(item.log.checkIn)} to {formatDate(item.log.checkOut)}</p>
+                                        </div>
+                                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${hasSchedule ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                                            {!hasSchedule && <WarningCircle size={13} weight="bold" />}
+                                            {hasSchedule ? 'Scheduled' : 'Needs invoice'}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </section>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
