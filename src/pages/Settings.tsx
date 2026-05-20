@@ -28,7 +28,6 @@ const Settings: React.FC = () => {
         deleteUser,
         runCloudHealthCheck,
         createCloudBackup,
-        importLegacyPersonalData,
         clearCloudError,
     } = useApp();
     const [isAddingUser, setIsAddingUser] = useState(false);
@@ -37,8 +36,6 @@ const Settings: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isCheckingCloud, setIsCheckingCloud] = useState(false);
     const [isBackingUp, setIsBackingUp] = useState(false);
-    const [isImportingLegacy, setIsImportingLegacy] = useState(false);
-    const [legacyMessage, setLegacyMessage] = useState<string | null>(null);
 
     const isAdmin =
         user?.email?.toLowerCase() === 'eric@tribute.studio' ||
@@ -92,21 +89,6 @@ const Settings: React.FC = () => {
             }
         } finally {
             setIsBackingUp(false);
-        }
-    };
-
-    const handleImportLegacy = async () => {
-        setIsImportingLegacy(true);
-        setLegacyMessage(null);
-        try {
-            const summary = await importLegacyPersonalData();
-            const total = summary.projects + summary.logs + summary.invoices;
-            setLegacyMessage(total === 0
-                ? 'No BESVECA-shaped legacy records were found in your old personal workspace.'
-                : `Imported ${summary.projects} guests, ${summary.logs} stays/expenses, and ${summary.invoices} invoices.`);
-            await runCloudHealthCheck();
-        } finally {
-            setIsImportingLegacy(false);
         }
     };
 
@@ -210,24 +192,6 @@ const Settings: React.FC = () => {
                         >
                             <DownloadSimple size={18} weight="bold" /> Download Snapshot
                         </button>
-                    </div>
-                    <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-5">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                            <div>
-                                <p className="text-sm font-bold text-slate-900">Legacy data rescue</p>
-                                <p className="text-xs text-slate-500 mt-1">Checks the old personal workspace and imports only BESVECA-shaped records into the shared cloud workspace.</p>
-                            </div>
-                            <button
-                                onClick={handleImportLegacy}
-                                disabled={isDemoMode || isImportingLegacy}
-                                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all border border-slate-200 disabled:opacity-50"
-                            >
-                                <Database size={16} weight="bold" /> {isImportingLegacy ? 'Checking...' : 'Import Legacy BESVECA Data'}
-                            </button>
-                        </div>
-                        {legacyMessage && (
-                            <p className="text-xs text-slate-600 mt-3">{legacyMessage}</p>
-                        )}
                     </div>
                 </div>
 

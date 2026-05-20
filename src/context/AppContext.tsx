@@ -27,7 +27,6 @@ import {
     query,
     setDoc,
     updateDoc,
-    writeBatch,
 } from 'firebase/firestore';
 import type { CollectionReference, DocumentData, Firestore, Unsubscribe } from 'firebase/firestore';
 
@@ -47,7 +46,6 @@ interface AppContextType extends AppState {
     deleteInvoice: (id: string) => Promise<void>;
     runCloudHealthCheck: () => Promise<CloudHealth | void>;
     createCloudBackup: () => Promise<CloudBackupPayload | void>;
-    importLegacyPersonalData: () => Promise<LegacyImportSummary>;
     clearCloudError: () => void;
 }
 
@@ -59,12 +57,6 @@ const OWNER_EMAILS = ['eric@tribute.studio', 'jessica@tribute.studio'];
 type FirestoreErrorLike = {
     code?: string;
     message?: string;
-};
-
-type LegacyImportSummary = {
-    projects: number;
-    logs: number;
-    invoices: number;
 };
 
 const getErrorMessage = (error: unknown) => {
@@ -167,26 +159,6 @@ const makeBackupId = () => {
         .replace(/\D/g, '')
         .slice(0, 14);
     return `backup-${timestamp}`;
-};
-
-const stripId = <T extends { id?: string }>(record: T) => {
-    const data = { ...record };
-    delete data.id;
-    return data;
-};
-
-const isLegacyBesvecaProject = (project: Project) => {
-    const client = project.client.toLowerCase();
-    const name = project.name.toLowerCase();
-    return client === 'besveca' || client === 'skyhouse' || name.includes('besveca') || name.includes('skyhouse');
-};
-
-const isLegacyBesvecaInvoice = (invoice: Invoice, guestNames: Set<string>) => {
-    const invoiceNumber = invoice.invoiceNumber.toLowerCase();
-    return invoiceNumber.startsWith('b-') ||
-        invoiceNumber.includes('besveca') ||
-        invoiceNumber.includes('skyhouse') ||
-        guestNames.has(invoice.clientId);
 };
 
 const describeCloudWriteFailure = (action: string, error: unknown) => {
@@ -886,68 +858,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
     };
 
-    const importLegacyPersonalData = async (): Promise<LegacyImportSummary> => {
-        if (state.isDemoMode) {
-            return { projects: 0, logs: 0, invoices: 0 };
-        }
-
-        const user = requireSignedInUser('import legacy personal data');
-
-        try {
-            const firestore = requireFirestore();
-            const [projectsSnap, logsSnap, invoicesSnap] = await Promise.all([
-                getDocsFromServer(collection(firestore, 'users', user.uid, 'projects')),
-                getDocsFromServer(collection(firestore, 'users', user.uid, 'logs')),
-                getDocsFromServer(collection(firestore, 'users', user.uid, 'invoices')),
-            ]);
-
-            const legacyProjects = projectsSnap.docs
-                .map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Project))
-                .filter(isLegacyBesvecaProject);
-            const projectIds = new Set(legacyProjects.map(project => project.id));
-            const guestNames = new Set(legacyProjects.map(project => project.name));
-            const legacyLogs = logsSnap.docs
-                .map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as LogItem))
-                .filter(log => log.type === 'STAY' || projectIds.has(log.projectId));
-            const legacyInvoices = invoicesSnap.docs
-                .map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Invoice))
-                .filter(invoice => isLegacyBesvecaInvoice(invoice, guestNames));
-
-            const summary = {
-                projects: legacyProjects.length,
-                logs: legacyLogs.length,
-                invoices: legacyInvoices.length,
-            };
-
-            if (summary.projects + summary.logs + summary.invoices === 0) {
-                return summary;
-            }
-
-            await performCloudWrite('import legacy personal data', () =>
-                runConfirmedFirestoreWrite('import legacy personal data', async (cloudFirestore) => {
-                    const batch = writeBatch(cloudFirestore);
-                    legacyProjects.forEach(project => {
-                        batch.set(businessDoc(cloudFirestore, 'projects', project.id), removeUndefinedFields(stripId(project)));
-                    });
-                    legacyLogs.forEach(log => {
-                        batch.set(businessDoc(cloudFirestore, 'logs', log.id), removeUndefinedFields(stripId(log)));
-                    });
-                    legacyInvoices.forEach(invoice => {
-                        batch.set(businessDoc(cloudFirestore, 'invoices', invoice.id), removeUndefinedFields(stripId(invoice)));
-                    });
-                    await batch.commit();
-                })
-            );
-
-            return summary;
-        } catch (error: unknown) {
-            console.error('Legacy import failed:', error);
-            const message = describeCloudWriteFailure('import legacy personal data', error);
-            alert(message);
-            throw error;
-        }
-    };
-
     const clearCloudError = () => {
         setState(prev => ({
             ...prev,
@@ -977,7 +887,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             deleteInvoice,
             runCloudHealthCheck,
             createCloudBackup,
-            importLegacyPersonalData,
             clearCloudError,
         }}>
             {children}

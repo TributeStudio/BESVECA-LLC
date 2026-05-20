@@ -140,6 +140,21 @@ try {
     throw new Error('Firestore rules did not block a different business workspace.');
   }
 
+  let tributeWorkspaceBlocked = false;
+  try {
+    await setDoc(doc(db, 'users', 'not-the-besveca-smoke-user', 'clients', 'codex-smoke-client'), {
+      name: 'Codex Cross-App Smoke Test',
+      createdAt: Date.now(),
+    });
+  } catch (error) {
+    tributeWorkspaceBlocked = error?.code === 'permission-denied';
+  }
+
+  if (!tributeWorkspaceBlocked) {
+    await deleteDoc(doc(db, 'users', 'not-the-besveca-smoke-user', 'clients', 'codex-smoke-client')).catch(() => {});
+    throw new Error('Firestore rules allowed a BESVECA admin token to write into a Tribute user workspace.');
+  }
+
   await deleteDoc(cleanupRef);
   await waitForPendingWrites(db);
   cleanupRef = undefined;
@@ -151,6 +166,7 @@ try {
     firebaseClientAuth: 'ok',
     besvecaBusinessWriteReadDelete: 'ok',
     otherBusinessIsolation: 'ok',
+    tributeWorkspaceIsolation: 'ok',
     cleanup: 'deleted smoke document and auth user',
   }, null, 2));
 } finally {

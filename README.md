@@ -15,6 +15,12 @@ The production app uses Firebase Auth and Firestore. Live accounting data is sto
 
 Real saves wait for cloud acknowledgement before the UI treats them as saved. Sample mode is temporary and is only for looking around.
 
+## Business Boundary
+
+BESVECA data must stay under `businesses/besveca-house/*`. The app should not read or write Tribute's `users/{uid}/*` workspace, and the Firestore smoke test checks that a BESVECA admin token cannot write into a Tribute user workspace.
+
+This repo carries the merged Firestore rules for both BESVECA and Tribute because both apps currently use the same Firebase project. Keep the rules merged when deploying from either repo so one app cannot overwrite the other app's security boundary.
+
 ## Required Environment
 
 - `VITE_FIREBASE_API_KEY`

@@ -6,7 +6,21 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function ownerEmail() {
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function tributeAdmin() {
+      return signedIn() && (
+        request.auth.token.tributeAdmin == true ||
+        request.auth.token.email in [
+          'eric@tribute.studio',
+          'jessica@tribute.studio'
+        ]
+      );
+    }
+
+    function besvecaOwner() {
       return signedIn() && (
         request.auth.token.besvecaAdmin == true ||
         request.auth.token.email in [
@@ -16,52 +30,48 @@ service cloud.firestore {
       );
     }
 
-    function isOwner(userId) {
-      return signedIn() && request.auth.uid == userId;
-    }
-
-    function businessMember(businessId) {
+    function besvecaMember(businessId) {
       return signedIn() &&
         businessId == 'besveca-house' &&
         (
-          ownerEmail() ||
+          besvecaOwner() ||
           exists(/databases/$(database)/documents/businesses/$(businessId)/members/$(request.auth.token.email))
         );
     }
 
-    match /businesses/{businessId} {
-      allow read: if businessMember(businessId);
-      allow create, update, delete: if ownerEmail();
-
-      match /members/{memberId} {
-        allow read: if businessMember(businessId);
-        allow create, update, delete: if ownerEmail();
-      }
-
-      match /projects/{projectId} {
-        allow read, write: if businessMember(businessId);
-      }
-
-      match /logs/{logId} {
-        allow read, write: if businessMember(businessId);
-      }
-
-      match /invoices/{invoiceId} {
-        allow read, write: if businessMember(businessId);
-      }
-
-      match /backups/{backupId} {
-        allow read, write: if businessMember(businessId);
-      }
-    }
-
     match /users/{userId}/{document=**} {
-      allow read, write: if isOwner(userId) || ownerEmail();
+      allow read, write: if isOwner(userId) || tributeAdmin();
     }
 
     match /users_metadata/{metadataId} {
-      allow read: if signedIn();
-      allow create, update, delete: if ownerEmail();
+      allow read: if tributeAdmin();
+      allow create, update, delete: if tributeAdmin();
+    }
+
+    match /businesses/{businessId} {
+      allow read: if besvecaMember(businessId);
+      allow create, update, delete: if besvecaOwner();
+
+      match /members/{memberId} {
+        allow read: if besvecaMember(businessId);
+        allow create, update, delete: if besvecaOwner();
+      }
+
+      match /projects/{projectId} {
+        allow read, write: if besvecaMember(businessId);
+      }
+
+      match /logs/{logId} {
+        allow read, write: if besvecaMember(businessId);
+      }
+
+      match /invoices/{invoiceId} {
+        allow read, write: if besvecaMember(businessId);
+      }
+
+      match /backups/{backupId} {
+        allow read, write: if besvecaMember(businessId);
+      }
     }
 
     match /{document=**} {
