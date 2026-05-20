@@ -7,6 +7,7 @@ Accounting workspace for BESVECA, LLC vacation rental operations.
 - Guests and property records
 - Stays, cleaning fees, pool heat, taxes, and reimbursable expenses
 - Guest invoices, deposits, payment schedules, and payment status
+- Rental agreement previews for stays longer than 29 nights
 - Cloud health checks and full JSON backups
 
 ## Data Safety
@@ -38,3 +39,10 @@ Do not commit `.env` files or payment details.
 - `npm run dev`
 - `npm run lint`
 - `npm run build`
+- `npm run import:long-stay -- <invoice.pdf> <agreement.pdf>`
+
+## Long-Stay Import
+
+Use the long-stay importer for owner-provided invoice and rental agreement PDFs. It extracts the guest, rental period, invoice number, total, and three-part payment schedule, creates a cloud backup first, and then writes only to `businesses/besveca-house/*`.
+
+The importer is duplicate-safe by guest, stay dates, and invoice number. It does not print guest contact details or payment details.

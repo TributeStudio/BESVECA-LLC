@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { draftInvoiceEmail } from '../services/gemini';
-import type { Invoice, InvoiceItem, InvoicePayment, InvoiceSchedule } from '../types';
+import type { Invoice, InvoiceItem, InvoicePayment, InvoiceSchedule, LogItem } from '../types';
 import {
     FileText,
     Printer,
@@ -16,7 +16,9 @@ import {
 import { COMPANY_CONFIG } from '../config/company';
 
 type DateFilterType = 'ALL' | 'MONTH' | 'RANGE';
+type PaymentStructure = 'FULL' | 'DEPOSIT_50' | 'THIRDS_LONG_STAY';
 type EmailInvoice = Pick<Invoice, 'clientId' | 'invoiceNumber' | 'total'> & Partial<Pick<Invoice, 'items'>>;
+type StayLog = LogItem & { checkIn: string; checkOut: string };
 
 const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
@@ -25,6 +27,47 @@ const formatDate = (dateStr: string) => {
         return `${parts[1]}/${parts[2]}/${parts[0]}`;
     }
     return dateStr;
+};
+
+const LONG_STAY_AGREEMENT_NIGHTS = 29;
+const MS_PER_DAY = 86400000;
+
+const getStayNights = (checkIn?: string, checkOut?: string) => {
+    if (!checkIn || !checkOut) return 0;
+    const start = new Date(checkIn);
+    const end = new Date(checkOut);
+    return Math.max(0, Math.ceil(Math.abs(end.getTime() - start.getTime()) / MS_PER_DAY));
+};
+
+const isStayWithDates = (log: { type: string; checkIn?: string; checkOut?: string }): log is StayLog =>
+    log.type === 'STAY' && Boolean(log.checkIn && log.checkOut);
+
+const getStayAccommodationTotal = (log: StayLog) => {
+    const cleaningFee = log.cleaningFee || 0;
+    const cleaningCount = log.cleaningCount || 0;
+    const poolHeat = log.poolHeat || 0;
+    const tax = Number(log.tax) || 0;
+    return Math.max(0, (log.billableAmount || 0) - (cleaningFee * cleaningCount) - poolHeat - tax);
+};
+
+const splitIntoThirds = (amount: number) => {
+    const first = Math.round((amount / 3) * 100) / 100;
+    const second = first;
+    const third = Number((amount - first - second).toFixed(2));
+    return [first, second, third];
+};
+
+const getDefaultSecondPaymentDate = (checkIn?: string) => {
+    if (!checkIn) return '';
+    const date = new Date(`${checkIn}T12:00:00`);
+    date.setMonth(date.getMonth() - 4);
+    date.setDate(1);
+    return date.toISOString().slice(0, 10);
+};
+
+const getPropertyDisplayName = (property?: string) => {
+    if (property === 'Skyhouse') return 'Sky House';
+    return 'BESVECA House';
 };
 
 const Invoices: React.FC = () => {
@@ -44,13 +87,15 @@ const Invoices: React.FC = () => {
     const [discountPercent, setDiscountPercent] = useState('');
 
     // Payment Structure State
-    const [paymentStructure, setPaymentStructure] = useState<'FULL' | 'DEPOSIT_50'>('FULL');
+    const [paymentStructure, setPaymentStructure] = useState<PaymentStructure>('FULL');
     const [depositDate, setDepositDate] = useState(new Date().toISOString().slice(0, 10));
+    const [secondPaymentDate, setSecondPaymentDate] = useState('');
     const [balanceDate, setBalanceDate] = useState('');
     const [paymentsReceived, setPaymentsReceived] = useState('');
     const [paymentsReceivedNote, setPaymentsReceivedNote] = useState('');
 
     const [showPreview, setShowPreview] = useState(false);
+    const [showAgreementPreview, setShowAgreementPreview] = useState(false);
     const [emailLoading, setEmailLoading] = useState(false);
     const [emailDraft, setEmailDraft] = useState<string | null>(null);
 
@@ -113,12 +158,37 @@ const Invoices: React.FC = () => {
         return dates[0];
     }, [filteredLogs]);
 
+    const longStayAgreement = useMemo(() => {
+        const stay = sortedLogs.find(log => isStayWithDates(log) && getStayNights(log.checkIn, log.checkOut) > LONG_STAY_AGREEMENT_NIGHTS);
+        if (!stay || !isStayWithDates(stay)) return null;
+        const project = projects.find(p => p.id === stay.projectId);
+        return {
+            stay,
+            project,
+            nights: getStayNights(stay.checkIn, stay.checkOut),
+            accommodationTotal: getStayAccommodationTotal(stay),
+            propertyName: getPropertyDisplayName(project?.client),
+        };
+    }, [projects, sortedLogs]);
+
     // Auto-set balance date when check-in is found
     React.useEffect(() => {
         if (earliestCheckIn && !balanceDate) {
             setBalanceDate(earliestCheckIn);
         }
     }, [balanceDate, earliestCheckIn]);
+
+    React.useEffect(() => {
+        if (longStayAgreement && paymentStructure === 'FULL') {
+            setPaymentStructure('THIRDS_LONG_STAY');
+        }
+    }, [longStayAgreement, paymentStructure]);
+
+    React.useEffect(() => {
+        if (longStayAgreement?.stay.checkIn && !secondPaymentDate) {
+            setSecondPaymentDate(getDefaultSecondPaymentDate(longStayAgreement.stay.checkIn));
+        }
+    }, [longStayAgreement, secondPaymentDate]);
 
     const totals = useMemo(() => {
         let subtotal = 0;
@@ -141,6 +211,17 @@ const Invoices: React.FC = () => {
 
         return { subtotal, discount: discountAmount, tax: adjustedTax, total };
     }, [filteredLogs, projects, discountPercent]);
+
+    const remainingInvoiceTotal = useMemo(() =>
+        Math.max(0, totals.total - (Number(paymentsReceived) || 0)),
+        [paymentsReceived, totals.total]
+    );
+
+    const longStayInstallments = useMemo(() => splitIntoThirds(remainingInvoiceTotal), [remainingInvoiceTotal]);
+    const agreementInstallments = useMemo(() =>
+        splitIntoThirds(longStayAgreement?.accommodationTotal || totals.total),
+        [longStayAgreement, totals.total]
+    );
 
     const calculateDueDate = () => {
         const today = new Date();
@@ -304,6 +385,28 @@ const Invoices: React.FC = () => {
                     amount: balanceAmount
                 }
             ];
+        } else if (paymentStructure === 'THIRDS_LONG_STAY') {
+            const [firstPayment, secondPayment, finalPayment] = splitIntoThirds(remainingTotal);
+            paymentSchedule = [
+                {
+                    id: crypto.randomUUID(),
+                    label: 'Payment 1 (1/3 due at booking)',
+                    date: depositDate || new Date().toISOString().slice(0, 10),
+                    amount: firstPayment
+                },
+                {
+                    id: crypto.randomUUID(),
+                    label: 'Payment 2 (1/3)',
+                    date: secondPaymentDate || getDefaultSecondPaymentDate(earliestCheckIn) || calculateDueDate(),
+                    amount: secondPayment
+                },
+                {
+                    id: crypto.randomUUID(),
+                    label: 'Payment 3 (1/3 due on or before check-in)',
+                    date: balanceDate || earliestCheckIn || calculateDueDate(),
+                    amount: finalPayment
+                }
+            ];
         }
 
         // Create Initial Payment Record if applicable
@@ -348,6 +451,7 @@ const Invoices: React.FC = () => {
         // Reset specific fields
         setPaymentsReceived('');
         setPaymentsReceivedNote('');
+        setSecondPaymentDate('');
     };
 
     const handleDraftEmail = async (clientId: string, total: string, projectNames: string[]) => {
@@ -508,7 +612,16 @@ Jessica`;
             {/* TAB: CREATE */}
             {activeTab === 'create' && (
                 <>
-                    <div className="flex justify-end mb-4">
+                    <div className="flex flex-wrap justify-end gap-3 mb-4">
+                        {longStayAgreement && (
+                            <button
+                                disabled={!selectedClientId}
+                                onClick={() => setShowAgreementPreview(true)}
+                                className="bg-white text-slate-800 px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-slate-50 transition-colors disabled:opacity-50 border border-slate-200"
+                            >
+                                <FileText size={18} weight="duotone" /> Preview Agreement
+                            </button>
+                        )}
                         <button
                             disabled={!selectedClientId || filteredLogs.length === 0}
                             onClick={() => setShowPreview(true)}
@@ -644,7 +757,7 @@ Jessica`;
                             </h3>
                             <div className="flex flex-col md:flex-row gap-6">
                                 <div className="space-y-4 flex-1">
-                                    <div className="flex gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <label className={`flex-1 cursor-pointer p-4 rounded-xl border-2 transition-all
                                             ${paymentStructure === 'FULL' ? 'bg-white border-slate-900 shadow-sm' : 'bg-transparent border-slate-100 hover:border-slate-300'}`}>
                                             <input
@@ -669,13 +782,27 @@ Jessica`;
                                             <div className="font-bold text-slate-900 mb-1">50/50 Split</div>
                                             <div className="text-xs text-slate-500">50% due now, 50% due later.</div>
                                         </label>
+                                        <label className={`flex-1 cursor-pointer p-4 rounded-xl border-2 transition-all
+                                            ${paymentStructure === 'THIRDS_LONG_STAY' ? 'bg-white border-slate-900 shadow-sm' : 'bg-transparent border-slate-100 hover:border-slate-300'}`}>
+                                            <input
+                                                type="radio"
+                                                name="paymentStructure"
+                                                className="hidden"
+                                                checked={paymentStructure === 'THIRDS_LONG_STAY'}
+                                                onChange={() => setPaymentStructure('THIRDS_LONG_STAY')}
+                                            />
+                                            <div className="font-bold text-slate-900 mb-1">Long Stay Thirds</div>
+                                            <div className="text-xs text-slate-500">Required agreement, three scheduled payments.</div>
+                                        </label>
                                     </div>
                                 </div>
 
-                                {paymentStructure === 'DEPOSIT_50' && (
-                                    <div className="flex-1 grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-left-4 duration-300">
+                                {paymentStructure !== 'FULL' && (
+                                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-left-4 duration-300">
                                         <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Deposit Due Date</label>
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                                {paymentStructure === 'THIRDS_LONG_STAY' ? 'Payment 1 Due' : 'Deposit Due Date'}
+                                            </label>
                                             <input
                                                 type="date"
                                                 className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-slate-900"
@@ -684,8 +811,22 @@ Jessica`;
                                             />
                                             <p className="text-[10px] text-slate-500">Usually today (Booking)</p>
                                         </div>
+                                        {paymentStructure === 'THIRDS_LONG_STAY' && (
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Payment 2 Due</label>
+                                                <input
+                                                    type="date"
+                                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-slate-900"
+                                                    value={secondPaymentDate}
+                                                    onChange={(e) => setSecondPaymentDate(e.target.value)}
+                                                />
+                                                <p className="text-[10px] text-slate-500">Use the agreement date for installment two</p>
+                                            </div>
+                                        )}
                                         <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Balance Due Date</label>
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                                {paymentStructure === 'THIRDS_LONG_STAY' ? 'Payment 3 Due' : 'Balance Due Date'}
+                                            </label>
                                             <input
                                                 type="date"
                                                 className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-slate-900"
@@ -697,6 +838,15 @@ Jessica`;
                                     </div>
                                 )}
                             </div>
+
+                            {longStayAgreement && (
+                                <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+                                    <div className="font-bold">Rental agreement required</div>
+                                    <div className="text-xs mt-1">
+                                        {longStayAgreement.nights} nights at {longStayAgreement.propertyName}. Preview the agreement before sending the invoice.
+                                    </div>
+                                </div>
+                            )}
 
 
                             {/* Pre-Payments Section */}
@@ -1180,12 +1330,30 @@ Jessica`;
                                                             <tr>
                                                                 <td className="py-2 font-medium text-slate-900">Deposit (50%)</td>
                                                                 <td className="py-2 text-slate-500">{depositDate ? formatDate(depositDate) : 'Upon Receipt'}</td>
-                                                                <td className="py-2 text-right font-bold text-slate-900">${((totals.total - (Number(paymentsReceived) || 0)) * 0.5).toFixed(2)}</td>
+                                                                <td className="py-2 text-right font-bold text-slate-900">${(remainingInvoiceTotal * 0.5).toFixed(2)}</td>
                                                             </tr>
                                                             <tr>
                                                                 <td className="py-2 font-medium text-slate-900">Balance (50%)</td>
                                                                 <td className="py-2 text-slate-500">{balanceDate ? formatDate(balanceDate) : 'Upon Arrival'}</td>
-                                                                <td className="py-2 text-right font-bold text-slate-900">${((totals.total - (Number(paymentsReceived) || 0)) - ((totals.total - (Number(paymentsReceived) || 0)) * 0.5)).toFixed(2)}</td>
+                                                                <td className="py-2 text-right font-bold text-slate-900">${(remainingInvoiceTotal - (remainingInvoiceTotal * 0.5)).toFixed(2)}</td>
+                                                            </tr>
+                                                        </>
+                                                    ) : paymentStructure === 'THIRDS_LONG_STAY' ? (
+                                                        <>
+                                                            <tr>
+                                                                <td className="py-2 font-medium text-slate-900">Payment 1 (1/3)</td>
+                                                                <td className="py-2 text-slate-500">{depositDate ? formatDate(depositDate) : 'Upon Receipt'}</td>
+                                                                <td className="py-2 text-right font-bold text-slate-900">${formatCurrency(longStayInstallments[0])}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td className="py-2 font-medium text-slate-900">Payment 2 (1/3)</td>
+                                                                <td className="py-2 text-slate-500">{secondPaymentDate ? formatDate(secondPaymentDate) : 'Custom Date'}</td>
+                                                                <td className="py-2 text-right font-bold text-slate-900">${formatCurrency(longStayInstallments[1])}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td className="py-2 font-medium text-slate-900">Payment 3 (1/3)</td>
+                                                                <td className="py-2 text-slate-500">{balanceDate ? formatDate(balanceDate) : 'On or before check-in'}</td>
+                                                                <td className="py-2 text-right font-bold text-slate-900">${formatCurrency(longStayInstallments[2])}</td>
                                                             </tr>
                                                         </>
                                                     ) : null}
@@ -1262,6 +1430,173 @@ Jessica`;
                     </div>
                 )
             }
+
+            {/* Rental Agreement Modal Preview */}
+            {showAgreementPreview && longStayAgreement && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm print:p-0 print:bg-white print:fixed print:inset-0">
+                    <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col print:shadow-none print:max-w-none print:max-h-none print:rounded-none">
+                        <div className="p-6 border-b border-slate-100 flex items-center justify-between print:hidden">
+                            <h2 className="font-bold text-xl">Rental Agreement Preview</h2>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => {
+                                        const originalTitle = document.title;
+                                        document.title = `BESVECA Rental Agreement ${selectedClientId || ''}`;
+                                        window.print();
+                                        setTimeout(() => document.title = originalTitle, 100);
+                                    }}
+                                    className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors"
+                                >
+                                    Print PDF
+                                </button>
+                                <button onClick={() => setShowAgreementPreview(false)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                                    <X size={20} weight="bold" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-12 bg-white printable-area font-sans text-slate-900 print:overflow-visible print:h-auto print:p-0">
+                            <div id="rental-agreement" className="max-w-3xl mx-auto print:max-w-none">
+                                <style>{`
+                                    @media print {
+                                        @page { margin: 0; size: auto; }
+                                        body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                                        #rental-agreement {
+                                            width: 100%;
+                                            max-width: none;
+                                            margin: 0;
+                                            padding: 2cm;
+                                            box-sizing: border-box;
+                                        }
+                                        .print-hidden { display: none !important; }
+                                    }
+                                `}</style>
+
+                                <div className="flex justify-between items-start mb-8 border-b border-slate-200 pb-8">
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-16 h-16 flex items-center justify-center overflow-hidden">
+                                                <img src="/besveca-logo.svg" alt="BESVECA" className="w-full h-full object-contain" />
+                                            </div>
+                                            <span className="font-bold text-lg tracking-tight">{COMPANY_CONFIG.name}</span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                                            {COMPANY_CONFIG.address.map((line, i) => <p key={i}>{line}</p>)}
+                                            <p>{COMPANY_CONFIG.contact.email}</p>
+                                            <p>{COMPANY_CONFIG.contact.phone}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <h2 className="text-xl font-bold text-slate-900 mb-1">RENTAL AGREEMENT</h2>
+                                        <p className="text-[11px] text-slate-500 mt-2">{formatDate(new Date().toISOString().slice(0, 10))}</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-7 text-sm leading-6 text-slate-700">
+                                    <section>
+                                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Parties</h3>
+                                        <p>
+                                            This rental agreement is between Jessica Luciano, owner representative for {COMPANY_CONFIG.name}, and {selectedClientId || 'Guest'} for the rental of {longStayAgreement.propertyName}.
+                                        </p>
+                                    </section>
+
+                                    <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Rental Property</h3>
+                                            <p className="font-bold text-slate-900">{longStayAgreement.propertyName}</p>
+                                            {COMPANY_CONFIG.address.map((line, i) => <p key={i}>{line}</p>)}
+                                        </div>
+                                        <div>
+                                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Rental Period</h3>
+                                            <p><span className="font-bold text-slate-900">Check-in:</span> {formatDate(longStayAgreement.stay.checkIn)}</p>
+                                            <p><span className="font-bold text-slate-900">Check-out:</span> {formatDate(longStayAgreement.stay.checkOut)}</p>
+                                            <p className="text-slate-500">{longStayAgreement.nights} nights</p>
+                                        </div>
+                                    </section>
+
+                                    <section>
+                                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Guests</h3>
+                                        <p>{selectedClientId || longStayAgreement.project?.name}</p>
+                                        <p className="text-slate-500">Adult guests: {selectedClientId.includes('&') || selectedClientId.toLowerCase().includes(' and ') ? '2' : '1'}</p>
+                                    </section>
+
+                                    <section>
+                                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Rental Payment</h3>
+                                        <div className="flex justify-between border-y border-slate-200 py-3 mb-3">
+                                            <span className="font-bold text-slate-900">Total Rental Amount</span>
+                                            <span className="font-bold text-slate-900">${formatCurrency(longStayAgreement.accommodationTotal || totals.total)}</span>
+                                        </div>
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="text-left text-[10px] font-bold text-slate-400 uppercase">
+                                                    <th className="pb-2">Payment</th>
+                                                    <th className="pb-2">Due Date</th>
+                                                    <th className="pb-2 text-right">Amount</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                <tr>
+                                                    <td className="py-2 font-medium text-slate-900">Payment 1 (1/3)</td>
+                                                    <td className="py-2 text-slate-500">{depositDate ? formatDate(depositDate) : 'Due at booking'}</td>
+                                                    <td className="py-2 text-right font-bold text-slate-900">${formatCurrency(agreementInstallments[0])}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="py-2 font-medium text-slate-900">Payment 2 (1/3)</td>
+                                                    <td className="py-2 text-slate-500">{secondPaymentDate ? formatDate(secondPaymentDate) : 'Custom Date'}</td>
+                                                    <td className="py-2 text-right font-bold text-slate-900">${formatCurrency(agreementInstallments[1])}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="py-2 font-medium text-slate-900">Payment 3 (1/3)</td>
+                                                    <td className="py-2 text-slate-500">{balanceDate ? formatDate(balanceDate) : 'On or before check-in'}</td>
+                                                    <td className="py-2 text-right font-bold text-slate-900">${formatCurrency(agreementInstallments[2])}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </section>
+
+                                    <section>
+                                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Payment Terms</h3>
+                                        <p>Payments are non-refundable. If guest travel plans change, payments may be applied toward a future stay within 12 months of the original check-in date, subject to written approval and availability.</p>
+                                    </section>
+
+                                    <section>
+                                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">House Terms</h3>
+                                        <ul className="list-disc pl-5 space-y-1">
+                                            <li>Utilities, internet, and standard property services are included unless otherwise agreed in writing.</li>
+                                            <li>Guests are responsible for maintaining the property in good condition and are liable for damage beyond normal wear.</li>
+                                            <li>No smoking is allowed inside the property.</li>
+                                            <li>Check-in instructions are provided before arrival. Standard check-in is after 3:00 PM and check-out is before 11:00 AM.</li>
+                                            <li>This agreement is governed by the laws of California.</li>
+                                        </ul>
+                                    </section>
+
+                                    <section>
+                                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Entire Agreement</h3>
+                                        <p>This agreement represents the understanding between the parties for this stay and supersedes prior oral or written discussions about the same rental period.</p>
+                                    </section>
+
+                                    <section className="pt-8">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
+                                            {(selectedClientId ? selectedClientId.split(/\s+(?:&|and)\s+/i) : ['Guest']).map((guest, index) => (
+                                                <div key={`${guest}-${index}`}>
+                                                    <div className="border-b border-slate-400 h-10 mb-2" />
+                                                    <p className="text-xs font-bold text-slate-900">{guest.trim() || `Guest ${index + 1}`}</p>
+                                                    <p className="text-[10px] text-slate-400 uppercase tracking-widest">Guest Signature / Date</p>
+                                                </div>
+                                            ))}
+                                            <div>
+                                                <div className="border-b border-slate-400 h-10 mb-2" />
+                                                <p className="text-xs font-bold text-slate-900">Jessica Luciano</p>
+                                                <p className="text-[10px] text-slate-400 uppercase tracking-widest">Owner Signature / Date</p>
+                                            </div>
+                                        </div>
+                                    </section>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Payment Recording Modal */}
             {

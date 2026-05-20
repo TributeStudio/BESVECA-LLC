@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "firebase:smoke": "node scripts/firebase-live-smoke.mjs"
+    "firebase:smoke": "node scripts/firebase-live-smoke.mjs",
+    "import:long-stay": "node scripts/import-long-stay-from-pdfs.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
