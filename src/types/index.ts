@@ -30,6 +30,7 @@ export interface LogItem {
   cleaningFee?: number;
   cleaningCount?: number;
   poolHeat?: number;
+  tax?: number;
 
 
   billableAmount?: number;
@@ -45,12 +46,50 @@ export interface User {
   role?: 'admin' | 'user';
 }
 
+export type CloudStatus = 'unchecked' | 'checking' | 'healthy' | 'error';
+
+export interface CloudHealth {
+  status: CloudStatus;
+  lastCheckedAt?: number;
+  lastConfirmedWriteAt?: number;
+  error?: string;
+  counts?: {
+    guests: number;
+    logs: number;
+    invoices: number;
+    members: number;
+  };
+}
+
+export interface CloudBackupSummary {
+  id: string;
+  createdAt: number;
+  counts: {
+    guests: number;
+    logs: number;
+    invoices: number;
+    members: number;
+  };
+}
+
+export interface CloudBackupPayload extends CloudBackupSummary {
+  schemaVersion: 1;
+  businessId: 'besveca-house';
+  source: 'live-firestore';
+  data: {
+    guests: Project[];
+    logs: LogItem[];
+    invoices: Invoice[];
+    members: User[];
+  };
+}
+
 export interface InvoiceItem {
   description: string;
   quantity: number;
   rate: number;
   amount: number;
-  type: LogType;
+  type: LogType | 'FEE';
   originalLogId?: string; // Reference to original log
   dates?: string; // e.g. "2023-10-01 - 2023-10-05" or just date
 }
@@ -79,6 +118,7 @@ export interface Invoice {
   terms: string;
   items: InvoiceItem[];
   subtotal: number;
+  discount?: number;
   tax: number;
   total: number;
   status: 'DRAFT' | 'SENT' | 'PARTIAL' | 'PAID';
@@ -93,6 +133,8 @@ export interface AppState {
   projects: Project[];
   logs: LogItem[];
   invoices: Invoice[]; // New
+  cloudHealth: CloudHealth;
+  backups: CloudBackupSummary[];
   isDemoMode: boolean;
   isLoading: boolean;
 }

@@ -15,33 +15,99 @@ import {
 } from '@phosphor-icons/react';
 
 const Settings: React.FC = () => {
-    const { logs, projects, isDemoMode, users, user, addUser, deleteUser } = useApp();
+    const {
+        logs,
+        projects,
+        invoices,
+        isDemoMode,
+        users,
+        user,
+        cloudHealth,
+        backups,
+        addUser,
+        deleteUser,
+        runCloudHealthCheck,
+        createCloudBackup,
+        importLegacyPersonalData,
+        clearCloudError,
+    } = useApp();
     const [isAddingUser, setIsAddingUser] = useState(false);
     const [newUserEmail, setNewUserEmail] = useState('');
     const [newUserRole, setNewUserRole] = useState<'admin' | 'user'>('user');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isCheckingCloud, setIsCheckingCloud] = useState(false);
+    const [isBackingUp, setIsBackingUp] = useState(false);
+    const [isImportingLegacy, setIsImportingLegacy] = useState(false);
+    const [legacyMessage, setLegacyMessage] = useState<string | null>(null);
 
-    // Bootstrap mode or Hardcoded Owner Access
     const isAdmin =
         user?.email?.toLowerCase() === 'eric@tribute.studio' ||
+        user?.email?.toLowerCase() === 'jessica@tribute.studio' ||
         user?.role === 'admin' ||
-        isDemoMode ||
-        users.filter(u => u.role === 'admin').length === 0;
+        isDemoMode;
 
-    const handleExport = () => {
-        const data = {
-            projects,
-            logs,
-            exportedAt: new Date().toISOString(),
-            version: '1.0.0'
-        };
+    const downloadJson = (data: unknown, filename: string) => {
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `tribute-studio-backup-${new Date().toISOString().split('T')[0]}.json`;
+        a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
+    };
+
+    const handleDownloadSnapshot = () => {
+        downloadJson({
+            business: 'BESVECA, LLC',
+            exportedAt: new Date().toISOString(),
+            source: isDemoMode ? 'sample-mode' : 'app-state',
+            counts: {
+                guests: projects.length,
+                logs: logs.length,
+                invoices: invoices.length,
+                users: users.length,
+            },
+            projects,
+            logs,
+            invoices,
+            users,
+        }, `besveca-house-snapshot-${new Date().toISOString().split('T')[0]}.json`);
+    };
+
+    const handleCloudCheck = async () => {
+        setIsCheckingCloud(true);
+        try {
+            await runCloudHealthCheck();
+        } finally {
+            setIsCheckingCloud(false);
+        }
+    };
+
+    const handleCreateBackup = async () => {
+        setIsBackingUp(true);
+        try {
+            const backup = await createCloudBackup();
+            if (backup) {
+                downloadJson(backup, `besveca-house-cloud-backup-${backup.id}.json`);
+            }
+        } finally {
+            setIsBackingUp(false);
+        }
+    };
+
+    const handleImportLegacy = async () => {
+        setIsImportingLegacy(true);
+        setLegacyMessage(null);
+        try {
+            const summary = await importLegacyPersonalData();
+            const total = summary.projects + summary.logs + summary.invoices;
+            setLegacyMessage(total === 0
+                ? 'No BESVECA-shaped legacy records were found in your old personal workspace.'
+                : `Imported ${summary.projects} guests, ${summary.logs} stays/expenses, and ${summary.invoices} invoices.`);
+            await runCloudHealthCheck();
+        } finally {
+            setIsImportingLegacy(false);
+        }
     };
 
     const handleAddUser = async (e: React.FormEvent) => {
@@ -67,8 +133,7 @@ const Settings: React.FC = () => {
         }
 
         if (confirm(`Are you sure you want to remove ${email || 'this user'}?`)) {
-            // For Firebase, we used the email-based ID
-            const id = !isDemoMode && email ? email.replace(/[.@]/g, '_') : uidOrId;
+            const id = email || uidOrId;
             await deleteUser(id);
         }
     };
@@ -76,8 +141,8 @@ const Settings: React.FC = () => {
     return (
         <div className="max-w-4xl mx-auto space-y-8">
             <div>
-                <h1 className="text-4xl font-bold text-slate-900 mb-2">Systems Configuration</h1>
-                <p className="text-slate-500">Manage your workspace preferences, users, and data security.</p>
+                <h1 className="text-4xl font-bold text-slate-900 mb-2">Settings</h1>
+                <p className="text-slate-500">Manage BESVECA access, cloud health, and backups.</p>
             </div>
 
             <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden divide-y divide-slate-50">
@@ -88,19 +153,82 @@ const Settings: React.FC = () => {
                             <Database size={24} weight="duotone" />
                         </div>
                         <div>
-                            <h2 className="font-bold text-lg">Data & Portability</h2>
-                            <p className="text-xs text-slate-400 uppercase tracking-widest font-sans font-bold">Secure Backups</p>
+                            <h2 className="font-bold text-lg">Cloud Data</h2>
+                            <p className="text-xs text-slate-400 uppercase tracking-widest font-sans font-bold">Backups & Verification</p>
                         </div>
                     </div>
                     <p className="text-slate-500 text-sm mb-6 leading-relaxed">
-                        Take your data with you. Export all projects, billable logs, and client details in a standardized JSON format compatible with major business intelligence tools.
+                        BESVECA records now live in one shared cloud workspace. Run a check before invoice work, then create a cloud backup when the books look right.
                     </p>
-                    <button
-                        onClick={handleExport}
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
-                    >
-                        <DownloadSimple size={18} weight="bold" /> Export JSON Data
-                    </button>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Cloud status</p>
+                            <p className={`text-sm font-bold ${cloudHealth.status === 'error' ? 'text-red-600' : cloudHealth.status === 'healthy' ? 'text-emerald-600' : 'text-slate-700'}`}>
+                                {cloudHealth.status === 'checking' ? 'Checking...' : cloudHealth.status === 'healthy' ? 'Cloud verified' : cloudHealth.status === 'error' ? 'Needs attention' : 'Not checked yet'}
+                            </p>
+                            {cloudHealth.counts && (
+                                <p className="text-xs text-slate-500 mt-2">
+                                    {cloudHealth.counts.guests} guests, {cloudHealth.counts.logs} stays/expenses, {cloudHealth.counts.invoices} invoices
+                                </p>
+                            )}
+                            {cloudHealth.error && (
+                                <button onClick={clearCloudError} className="text-xs text-red-600 mt-2 font-bold hover:text-red-700">
+                                    Clear message
+                                </button>
+                            )}
+                        </div>
+                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Latest backup</p>
+                            <p className="text-sm font-bold text-slate-700">
+                                {backups.length > 0 ? new Date(backups[0].createdAt).toLocaleString() : 'No cloud backup yet'}
+                            </p>
+                            {backups.length > 0 && (
+                                <p className="text-xs text-slate-500 mt-2">
+                                    {backups[0].counts.guests} guests, {backups[0].counts.logs} stays/expenses, {backups[0].counts.invoices} invoices
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                            onClick={handleCloudCheck}
+                            disabled={isCheckingCloud}
+                            className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 disabled:opacity-50"
+                        >
+                            <Database size={18} weight="bold" /> {isCheckingCloud ? 'Checking Cloud...' : 'Check Cloud Data'}
+                        </button>
+                        <button
+                            onClick={handleCreateBackup}
+                            disabled={isBackingUp}
+                            className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all disabled:opacity-50"
+                        >
+                            <ShieldCheck size={18} weight="bold" /> {isBackingUp ? 'Creating Backup...' : 'Create Cloud Backup'}
+                        </button>
+                        <button
+                            onClick={handleDownloadSnapshot}
+                            className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all border border-slate-200"
+                        >
+                            <DownloadSimple size={18} weight="bold" /> Download Snapshot
+                        </button>
+                    </div>
+                    <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-5">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div>
+                                <p className="text-sm font-bold text-slate-900">Legacy data rescue</p>
+                                <p className="text-xs text-slate-500 mt-1">Checks the old personal workspace and imports only BESVECA-shaped records into the shared cloud workspace.</p>
+                            </div>
+                            <button
+                                onClick={handleImportLegacy}
+                                disabled={isDemoMode || isImportingLegacy}
+                                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all border border-slate-200 disabled:opacity-50"
+                            >
+                                <Database size={16} weight="bold" /> {isImportingLegacy ? 'Checking...' : 'Import Legacy BESVECA Data'}
+                            </button>
+                        </div>
+                        {legacyMessage && (
+                            <p className="text-xs text-slate-600 mt-3">{legacyMessage}</p>
+                        )}
+                    </div>
                 </div>
 
                 {/* User Management (Admin Only) */}
@@ -147,7 +275,7 @@ const Settings: React.FC = () => {
                                         />
                                         <select
                                             value={newUserRole}
-                                            onChange={(e) => setNewUserRole(e.target.value as any)}
+                                            onChange={(e) => setNewUserRole(e.target.value as 'admin' | 'user')}
                                             className="bg-white border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
                                         >
                                             <option value="user">Standard User</option>
@@ -222,18 +350,18 @@ const Settings: React.FC = () => {
                         </div>
                         <div>
                             <h2 className="font-bold text-lg">Security & Privacy</h2>
-                            <p className="text-xs text-slate-400 uppercase tracking-widest font-sans font-bold">End-to-End Encryption</p>
+                            <p className="text-xs text-slate-400 uppercase tracking-widest font-sans font-bold">Firebase Cloud Workspace</p>
                         </div>
                     </div>
                     <p className="text-slate-500 text-sm mb-6 leading-relaxed">
-                        Your data is stored {isDemoMode ? 'locally in your browser' : 'securely in Google Firebase'}. We do not share your financial data with any third parties except for AI processing when explicitly requested.
+                        Your data is stored {isDemoMode ? 'in temporary sample mode' : 'in the BESVECA cloud workspace'}. Statement uploads are only sent for AI extraction when you choose to use that tool.
                     </p>
                     <div className="flex gap-4">
                         <div className="px-4 py-2 bg-slate-50 rounded-lg text-xs font-bold text-slate-500 flex items-center gap-2 border border-slate-100">
-                            <Lightning size={14} weight="fill" className="text-amber-500" /> TLS 1.3 Active
+                            <Lightning size={14} weight="fill" className="text-amber-500" /> Confirmed Cloud Saves
                         </div>
                         <div className="px-4 py-2 bg-slate-50 rounded-lg text-xs font-bold text-slate-500 flex items-center gap-2 border border-slate-100">
-                            <Info size={14} weight="fill" className="text-sky-500" /> HIPAA Compliant
+                            <Info size={14} weight="fill" className="text-sky-500" /> Owner-Managed Access
                         </div>
                     </div>
                 </div>
@@ -242,9 +370,9 @@ const Settings: React.FC = () => {
             <div className="bg-amber-50 border border-amber-100 p-6 rounded-2xl flex gap-4">
                 <Info size={24} weight="fill" className="text-amber-500 flex-shrink-0" />
                 <div>
-                    <h3 className="text-sm font-bold text-amber-900">Advanced AI Integration</h3>
+                    <h3 className="text-sm font-bold text-amber-900">Statement Extraction</h3>
                     <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                        Tribute Studio uses Google Gemini 1.5 Flash for high-precision extraction. To maximize accuracy, ensure your statement exports are provided in clear, structured text or high-resolution images.
+                        Use AI statement extraction for cleanup speed, then review every imported charge before saving it to the books.
                     </p>
                 </div>
             </div>

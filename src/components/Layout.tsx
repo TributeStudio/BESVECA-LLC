@@ -52,10 +52,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
                 <nav className="flex-1 space-y-2">
                     <SidebarItem to="/dashboard" icon={SquaresFour} label="Dashboard" />
+                    <SidebarItem to="/projects" icon={UserSquare} label="Guests" />
                     <SidebarItem to="/tracker" icon={Timer} label="Guest Folio" />
                     <SidebarItem to="/statements" icon={CreditCard} label="CC Statements" />
                     <SidebarItem to="/invoices" icon={Invoice} label="Invoices" />
-                    <SidebarItem to="/projects" icon={UserSquare} label="Guests" />
                 </nav>
 
                 <div className="pt-6 border-t border-white/5 space-y-2">
@@ -71,7 +71,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
                 {isDemoMode && (
                     <div className="mt-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                        <p className="text-xs text-amber-500 font-medium text-center">Demo Mode Active</p>
+                        <p className="text-xs text-amber-500 font-medium text-center">Sample Mode: Not Saved</p>
                     </div>
                 )}
             </aside>

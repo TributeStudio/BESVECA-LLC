@@ -43,7 +43,7 @@ const Statements: React.FC = () => {
             setStatus('Extracting data with AI...');
             const results = await processFile(base64, file.type);
 
-            const items = results.map((item: any) => ({
+            const items = results.map((item) => ({
                 ...item,
                 id: Math.random().toString(36).substr(2, 9),
                 selected: true,
@@ -53,9 +53,9 @@ const Statements: React.FC = () => {
 
             setExtractedItems(items);
             setStatus(null);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error);
-            setStatus(`Error: ${error.message || 'Failed to process file'}`);
+            setStatus(`Error: ${error instanceof Error ? error.message : 'Failed to process file'}`);
         } finally {
             setIsProcessing(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -118,7 +118,7 @@ const Statements: React.FC = () => {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
                     <h1 className="text-4xl font-bold text-slate-900 mb-2">Statement Processing</h1>
-                    <p className="text-slate-500 max-w-xl">Upload PDF statements (Amex, Chase, etc.) to automatically extract charges and assign them to project jobs.</p>
+                    <p className="text-slate-500 max-w-xl">Upload PDF statements to extract charges and assign them to a guest or property record.</p>
                 </div>
 
                 <div className="flex gap-4">
@@ -201,7 +201,7 @@ const Statements: React.FC = () => {
                                     </div>
 
                                     <div className="flex-1 min-w-[240px]">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Assign to Job</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Assign To</p>
                                         {item.status === 'pending' ? (
                                             <div className="relative">
                                                 <select
@@ -209,7 +209,7 @@ const Statements: React.FC = () => {
                                                     onChange={(e) => handleAssignProject(item.id, e.target.value)}
                                                     className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-slate-950 appearance-none shadow-sm"
                                                 >
-                                                    <option value="">Choose a project...</option>
+                                                    <option value="">Choose a guest or property...</option>
                                                     {projects.map(p => (
                                                         <option key={p.id} value={p.id}>{p.name}</option>
                                                     ))}

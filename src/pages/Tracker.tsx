@@ -8,8 +8,7 @@ const formatDate = (dateStr: string) => {
     // Handle YYYY-MM-DD
     const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (match) {
-        const [_, year, month, day] = match;
-        return `${month}/${day}/${year}`;
+        return `${match[2]}/${match[3]}/${match[1]}`;
     }
     return dateStr;
 };
@@ -36,6 +35,7 @@ const Tracker: React.FC = () => {
         cleaningCount: '1',
         cleaningFee: '275',
         poolHeat: '',
+        addTax: false,
     });
 
     const [selectedProperty, setSelectedProperty] = useState<string>('');
@@ -71,10 +71,11 @@ const Tracker: React.FC = () => {
                 : Number(formData.rate) * nights;
             const cleaningTotal = Number(formData.cleaningCount) * Number(formData.cleaningFee);
             const poolHeatTotal = Number(formData.poolHeat) || 0;
-            return stayTotal + cleaningTotal + poolHeatTotal;
+            const subtotal = stayTotal + cleaningTotal + poolHeatTotal;
+            return formData.addTax ? subtotal * 1.125 : subtotal;
         }
         return 0;
-    }, [activeTab, formData.cost, formData.markupPercent, formData.rate, formData.pricingMode, nights, formData.cleaningCount, formData.cleaningFee, formData.poolHeat]);
+    }, [activeTab, formData.cost, formData.markupPercent, formData.rate, formData.pricingMode, nights, formData.cleaningCount, formData.cleaningFee, formData.poolHeat, formData.addTax]);
 
     const profit = activeTab === 'EXPENSE'
         ? (billableAmount - Number(formData.cost))
@@ -84,7 +85,7 @@ const Tracker: React.FC = () => {
         e.preventDefault();
 
         if (!formData.projectId) {
-            alert("Please select a property.");
+            alert("Please select a guest record.");
             return;
         }
 
@@ -92,18 +93,8 @@ const Tracker: React.FC = () => {
 
         setIsLoading(true);
 
-        // Watchdog: Force-reset loading state if operation hangs for more than 8 seconds
-        // This runs independently of the async flow below
-        const watchdog = setTimeout(() => {
-            if (isLoading) {
-                console.warn('Watchdog triggered: Operation timed out.');
-                setIsLoading(false);
-                alert('Request timed out. Please check your connection and try again.');
-            }
-        }, 8000);
-
         try {
-            const logData: any = {
+            const logData: Omit<LogItem, 'id' | 'createdAt'> = {
                 projectId: formData.projectId,
                 date: formData.date,
                 description: formData.description || (activeTab === 'STAY' ? `Stay: ${formData.client} ` : ''),
@@ -126,6 +117,9 @@ const Tracker: React.FC = () => {
                 logData.cleaningCount = Number(formData.cleaningCount);
                 logData.cleaningFee = Number(formData.cleaningFee);
                 logData.poolHeat = Number(formData.poolHeat);
+                if (formData.addTax) {
+                    logData.tax = Number((billableAmount * (0.125 / 1.125)).toFixed(2));
+                }
             }
 
             if (editingLogId) {
@@ -142,7 +136,6 @@ const Tracker: React.FC = () => {
             console.error('Tracker submit error:', error);
             alert('An error occurred while saving. Please try again.');
         } finally {
-            clearTimeout(watchdog);
             setIsLoading(false);
         }
     };
@@ -163,6 +156,7 @@ const Tracker: React.FC = () => {
             cleaningCount: '1',
             cleaningFee: '275',
             poolHeat: '',
+            addTax: false,
         });
         setSelectedProperty('');
     };
@@ -186,13 +180,24 @@ const Tracker: React.FC = () => {
             hours: log.hours?.toString() || '',
             cost: log.cost?.toString() || '',
             markupPercent: log.markupPercent?.toString() || '20',
-            rate: log.type === 'STAY' && log.checkIn && log.checkOut
-                ? (log.billableAmount! / Math.max(1, Math.ceil((new Date(log.checkOut).getTime() - new Date(log.checkIn).getTime()) / (86400000)))).toFixed(2) // Approximate rate if nightly
-                : log.billableAmount?.toString() || '',
-            pricingMode: 'FLAT', // Default to flat when editing legacy or simplified
+            rate: log.type === 'STAY' ? (log.cost?.toString() || '') : (log.billableAmount?.toString() || ''),
+            pricingMode: (() => {
+                if (log.type !== 'STAY' || !log.checkIn || !log.checkOut) return 'FLAT';
+                const days = Math.max(1, Math.ceil((new Date(log.checkOut).getTime() - new Date(log.checkIn).getTime()) / 86400000));
+                // Calculate expected stay amount from billable total
+                const stayAmount = (log.billableAmount || 0)
+                    - ((log.cleaningFee || 0) * (log.cleaningCount || 1))
+                    - (log.poolHeat || 0)
+                    - (log.tax || 0);
+
+                // If logged rate * days matches stayAmount (approx), it is Nightly
+                const isNightly = Math.abs((log.cost || 0) * days - stayAmount) < 5;
+                return isNightly ? 'NIGHTLY' : 'FLAT';
+            })() as 'NIGHTLY' | 'FLAT',
             cleaningCount: log.cleaningCount?.toString() || '1',
             cleaningFee: log.cleaningFee?.toString() || '275',
             poolHeat: log.poolHeat?.toString() || '',
+            addTax: (log.tax && log.tax > 0) || false,
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -216,16 +221,16 @@ const Tracker: React.FC = () => {
                         <div className="flex border-b border-slate-100">
                             <button
                                 onClick={() => setActiveTab('STAY')}
-                                className={`flex - 1 py - 4 font - medium text - sm flex items - center justify - center gap - 2 transition - all
-                                ${activeTab === 'STAY' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'} `}
+                                className={`flex-1 py-4 font-medium text-sm flex items-center justify-center gap-2 transition-all
+                                ${activeTab === 'STAY' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
                             >
                                 <House size={16} weight="duotone" /> Guest Stay
                             </button>
 
                             <button
                                 onClick={() => setActiveTab('EXPENSE')}
-                                className={`flex - 1 py - 4 font - medium text - sm flex items - center justify - center gap - 2 transition - all
-                                ${activeTab === 'EXPENSE' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'} `}
+                                className={`flex-1 py-4 font-medium text-sm flex items-center justify-center gap-2 transition-all
+                                ${activeTab === 'EXPENSE' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
                             >
                                 <Tag size={16} weight="duotone" /> Expense
                             </button>
@@ -407,6 +412,18 @@ const Tracker: React.FC = () => {
                                         className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
                                     />
                                 </div>
+                                <div className="mt-4 flex items-center gap-3 bg-slate-50 p-4 rounded-xl">
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.addTax}
+                                        onChange={(e) => setFormData({ ...formData, addTax: e.target.checked })}
+                                        className="w-5 h-5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                                    />
+                                    <div className="flex-1">
+                                        <p className="text-sm font-bold text-slate-900">Add Palm Springs City Tax</p>
+                                        <p className="text-xs text-slate-500">Adds 12.5% to the total billable amount.</p>
+                                    </div>
+                                </div>
                             </>
                         )}
 
@@ -453,15 +470,15 @@ const Tracker: React.FC = () => {
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className={`w - full py - 4 rounded - xl font - bold flex items - center justify - center gap - 2 transition - all
-                            ${success ? 'bg-emerald-500 text-white' : 'bg-slate-900 text-white hover:bg-slate-800'} `}
+                            className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all
+                            ${success ? 'bg-emerald-500 text-white' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
                         >
                             {isLoading ? (
                                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                             ) : success ? (
                                 <><Check size={20} weight="bold" /> Saved</>
                             ) : (
-                                <>{editingLogId ? <><FloppyDisk size={20} weight="bold" /> Update Entry</> : <><Plus size={20} weight="bold" /> Add Stay/Log</>}</>
+                                <>{editingLogId ? <><FloppyDisk size={20} weight="bold" /> Update Entry</> : <><Plus size={20} weight="bold" /> Save Stay / Expense</>}</>
                             )}
                         </button>
                     </form>
@@ -475,7 +492,7 @@ const Tracker: React.FC = () => {
                             return (
                                 <div key={log.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group">
                                     <div className="flex justify-between items-start mb-3">
-                                        <div className={`p - 2 rounded - lg 
+                                        <div className={`p-2 rounded-lg
                                             ${log.type === 'EXPENSE' ? 'bg-pink-50 text-pink-600' :
                                                 'bg-emerald-50 text-emerald-600'
                                             } `}>
@@ -506,7 +523,7 @@ const Tracker: React.FC = () => {
                                             {formatDate(log.checkIn!)} - {formatDate(log.checkOut!)}
                                         </div>
                                     )}
-                                    <p className="text-xs text-slate-500 mb-3">{project?.name || 'Unknown Property'}</p>
+                                    <p className="text-xs text-slate-500 mb-3">{project?.client || 'Unknown Property'}</p>
                                     <div className="flex justify-between items-center pt-3 border-t border-slate-50">
                                         <span className="text-[10px] text-slate-400 font-medium">{formatDate(log.date)}</span>
                                         <span className="text-sm font-bold text-slate-900">

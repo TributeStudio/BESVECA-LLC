@@ -1,13 +1,1 @@
-<svg viewBox="0 0 100 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Top Left: Pink Quarter Cylinder/Rounded Corner -->
-  <path d="M50 0 L50 100 L0 100 L0 50 A50 50 0 0 1 50 0Z" fill="#EAB8B8" />
-  
-  <!-- Bottom Left: Dark Blue Rectangle -->
-  <rect x="0" y="100" width="50" height="100" fill="#1F4E5F" />
-  
-  <!-- Top Right: Teal Semi-Circle -->
-  <path d="M50 0 A50 50 0 0 1 50 100 L50 0Z" fill="#7FB0B0" />
-  
-  <!-- Bottom Right: Yellow Semi-Circle -->
-  <path d="M50 100 A50 50 0 0 1 50 200 L50 100Z" fill="#E8D888" />
-</svg>
+<?xml version="1.0" encoding="UTF-8"?><svg id="Layer_2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 288"><defs><style>.cls-1{fill:#7aa2a0;}.cls-2{fill:#e1d287;}.cls-3{fill:#225463;}.cls-4{fill:#ecbeb2;}</style></defs><g id="Layer_1-2"><path class="cls-2" d="M144,216c0,39.76-32.24,72-72,72v-144c39.76,0,72,32.24,72,72Z"/><path class="cls-1" d="M144,72c0,39.76-32.24,72-72,72V0c39.76,0,72,32.24,72,72Z"/><polygon class="cls-3" points="0 144 0 216 0 288 72 288 72 144 0 144"/><path class="cls-4" d="M36,9.63C25.41,3.51,13.11,0,0,0v144h72v-72c0-26.65-14.48-49.92-36-62.37Z"/></g></svg>

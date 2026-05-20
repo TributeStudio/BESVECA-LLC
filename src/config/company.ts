@@ -11,13 +11,6 @@ export const COMPANY_CONFIG = {
         email: 'jessica@tribute.studio',
         phone: '+1 (310) 717-9946'
     },
-    bank: {
-        name: 'Wells Fargo Bank',
-        address: '333 Market Street, San Francisco, CA 94105',
-        routing: '121042882',
-        account: '3782655249',
-        beneficiary: 'BESVECA, LLC'
-    },
     theme: {
         color: 'slate' // You can change this to 'zinc', 'neutral', etc.
     }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Plus, UserSquare, User, Pencil, Envelope, Phone, MapPin } from '@phosphor-icons/react';
+import { Plus, UserSquare, Pencil, Envelope, Phone, MapPin } from '@phosphor-icons/react';
 import type { Project } from '../types';
 
 const Projects: React.FC = () => {
@@ -45,12 +45,12 @@ const Projects: React.FC = () => {
         if (isSaving) return;
         setIsSaving(true);
 
-        // Safety timeout to prevent infinite spinning
+        // UI safety timeout; cloud writes also have their own confirmation timeout.
         const timeoutId = setTimeout(() => {
             console.warn('Operation timed out in UI safety check');
             setIsSaving(false);
             alert('Request timed out. Please check your connection and try again.');
-        }, 8000);
+        }, 20000);
 
         try {
             const projectData = {
@@ -97,7 +97,7 @@ const Projects: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {projects.map((project) => (
-                    <div key={project.id} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 group hover:shadow-xl transition-all duration-300 relative">
+                    <div key={project.id} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 group hover:shadow-xl transition-all duration-300 relative flex flex-col h-full">
                         <div className="flex justify-between items-start mb-6">
                             <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-slate-900 group-hover:text-white transition-colors">
                                 <UserSquare size={24} weight="duotone" />
@@ -122,8 +122,8 @@ const Projects: React.FC = () => {
                         </div>
 
                         <h3 className="text-xl font-bold text-slate-900 mb-1">{project.name}</h3>
-                        <p className="text-sm text-slate-500 mb-6 flex items-center gap-1">
-                            <User size={14} weight="duotone" className="opacity-50" /> {project.client}
+                        <p className="text-sm text-slate-500 mb-6">
+                            {project.client}
                         </p>
 
                         <div className="space-y-2 mb-6">
@@ -147,11 +147,7 @@ const Projects: React.FC = () => {
                             )}
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4 pt-6 border-t border-slate-50">
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Rate</p>
-                                <p className="text-lg font-bold text-slate-900 tabular-nums">${project.hourlyRate}<span className="text-sm font-normal text-slate-400">/night</span></p>
-                            </div>
+                        <div className="pt-6 border-t border-slate-50 mt-auto">
                             <div>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Created</p>
                                 <p className="text-sm font-medium text-slate-600">{new Date(project.createdAt).toLocaleDateString()}</p>
@@ -176,7 +172,7 @@ const Projects: React.FC = () => {
                                 <input
                                     type="text"
                                     required
-                                    placeholder="e.g. Brand Identity 2024"
+                                    placeholder="e.g. Jane Guest"
                                     className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-900"
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}

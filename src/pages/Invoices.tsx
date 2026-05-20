@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { draftInvoiceEmail } from '../services/gemini';
+import type { Invoice, InvoiceItem, InvoicePayment, InvoiceSchedule } from '../types';
 import {
     FileText,
     Printer,
@@ -9,9 +10,13 @@ import {
     X,
     Sparkle,
     CreditCard,
-    PlusCircle
+    PlusCircle,
+    Trash
 } from '@phosphor-icons/react';
 import { COMPANY_CONFIG } from '../config/company';
+
+type DateFilterType = 'ALL' | 'MONTH' | 'RANGE';
+type EmailInvoice = Pick<Invoice, 'clientId' | 'invoiceNumber' | 'total'> & Partial<Pick<Invoice, 'items'>>;
 
 const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
@@ -23,19 +28,20 @@ const formatDate = (dateStr: string) => {
 };
 
 const Invoices: React.FC = () => {
-    const { logs, projects, addInvoice, invoices, updateInvoice } = useApp();
+    const { logs, projects, addInvoice, invoices, updateInvoice, deleteInvoice } = useApp();
     const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
 
     // Generator State
     const [selectedClientId, setSelectedClientId] = useState('');
     const [selectedProjectId, setSelectedProjectId] = useState('ALL');
-    const [dateFilterType, setDateFilterType] = useState<'ALL' | 'MONTH' | 'RANGE'>('ALL');
+    const [dateFilterType, setDateFilterType] = useState<DateFilterType>('ALL');
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
     const [dateRange, setDateRange] = useState({ start: '', end: '' });
 
     // Invoice Terms State
     const [paymentTerms, setPaymentTerms] = useState('DUE_ON_RECEIPT');
     const [customDueDate, setCustomDueDate] = useState('');
+    const [discountPercent, setDiscountPercent] = useState('');
 
     // Payment Structure State
     const [paymentStructure, setPaymentStructure] = useState<'FULL' | 'DEPOSIT_50'>('FULL');
@@ -56,7 +62,7 @@ const Invoices: React.FC = () => {
     const [paymentNote, setPaymentNote] = useState('');
 
     const clients = useMemo(() => {
-        const projectClients = projects.map(p => p.client).filter(Boolean);
+        const projectClients = projects.map(p => p.name).filter(Boolean);
         const logClients = logs.map(l => l.client).filter(Boolean) as string[];
         const uniqueClients = Array.from(new Set([...projectClients, ...logClients]));
         return uniqueClients.sort();
@@ -64,7 +70,7 @@ const Invoices: React.FC = () => {
 
     const clientProjects = useMemo(() => {
         if (!selectedClientId) return [];
-        return projects.filter(p => p.client === selectedClientId);
+        return projects.filter(p => p.name === selectedClientId);
     }, [projects, selectedClientId]);
 
     const filteredLogs = useMemo(() => {
@@ -73,7 +79,7 @@ const Invoices: React.FC = () => {
         // 1. Filter by Client
         let filtered = logs.filter(l => {
             const project = projects.find(p => p.id === l.projectId);
-            const logClient = l.client || project?.client;
+            const logClient = l.client || project?.name;
             return logClient === selectedClientId;
         });
 
@@ -92,6 +98,14 @@ const Invoices: React.FC = () => {
         return filtered.sort((a, b) => b.date.localeCompare(a.date));
     }, [selectedClientId, selectedProjectId, dateFilterType, selectedMonth, dateRange, logs, projects]);
 
+    const sortedLogs = useMemo(() => [...filteredLogs].sort((a, b) => {
+        const dateA = (a.type === 'STAY' && a.checkIn) ? a.checkIn : a.date;
+        const dateB = (b.type === 'STAY' && b.checkIn) ? b.checkIn : b.date;
+        return dateA.localeCompare(dateB);
+    }), [filteredLogs]);
+
+    const formatCurrency = (amount: number) => amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
     const earliestCheckIn = useMemo(() => {
         const stayLogs = filteredLogs.filter(l => l.type === 'STAY' && l.checkIn);
         if (stayLogs.length === 0) return '';
@@ -104,20 +118,29 @@ const Invoices: React.FC = () => {
         if (earliestCheckIn && !balanceDate) {
             setBalanceDate(earliestCheckIn);
         }
-    }, [earliestCheckIn]);
+    }, [balanceDate, earliestCheckIn]);
 
     const totals = useMemo(() => {
         let subtotal = 0;
+        let tax = 0;
         filteredLogs.forEach(l => {
             const project = projects.find(p => p.id === l.projectId);
             if (l.type === 'TIME' && l.hours && project) {
                 subtotal += l.hours * project.hourlyRate;
             } else if ((l.type === 'EXPENSE' || l.type === 'STAY') && l.billableAmount) {
-                subtotal += l.billableAmount;
+                const logTax = Number(l.tax) || 0;
+                subtotal += (l.billableAmount - logTax);
+                tax += logTax;
             }
         });
-        return { subtotal, tax: subtotal * 0, total: subtotal };
-    }, [filteredLogs, projects]);
+
+        const discountRate = Number(discountPercent) / 100 || 0;
+        const discountAmount = subtotal * discountRate;
+        const adjustedTax = tax * (1 - discountRate); // Tax scales with discount
+        const total = (subtotal - discountAmount) + adjustedTax;
+
+        return { subtotal, discount: discountAmount, tax: adjustedTax, total };
+    }, [filteredLogs, projects, discountPercent]);
 
     const calculateDueDate = () => {
         const today = new Date();
@@ -149,7 +172,7 @@ const Invoices: React.FC = () => {
         return diffDays > 0 ? diffDays : 0;
     };
 
-    const generateInvoiceNumber = (clientName: string) => {
+    const generateInvoiceNumber = useCallback((clientName: string) => {
         if (!clientName) return `${COMPANY_CONFIG.invoicePrefix}-DRAFT`;
         const clientCode = clientName.replace(/[^a-zA-Z]/g, '').slice(0, 3).toUpperCase();
         const now = new Date();
@@ -163,17 +186,82 @@ const Invoices: React.FC = () => {
         const sequence = (count + 1).toString().padStart(2, '0');
 
         return `${prefix}-${sequence}`;
-    };
+    }, [invoices]);
 
-    const draftInvoiceNumber = useMemo(() => generateInvoiceNumber(selectedClientId), [selectedClientId, invoices.length]);
+    const draftInvoiceNumber = useMemo(() => generateInvoiceNumber(selectedClientId), [generateInvoiceNumber, selectedClientId]);
 
     const handleSaveInvoice = async () => {
         if (!selectedClientId) return;
 
-        const invoiceItems = filteredLogs.map(log => {
+        const invoiceItems: InvoiceItem[] = sortedLogs.flatMap(log => {
             const project = projects.find(p => p.id === log.projectId);
 
-            let rate = 0;
+            if (log.type === 'STAY') {
+                const items: InvoiceItem[] = [];
+                const checkIn = new Date(log.checkIn!);
+                const checkOut = new Date(log.checkOut!);
+                const nights = Math.ceil(Math.abs(checkOut.getTime() - checkIn.getTime()) / (86400000)) || 1;
+
+                const cleaningFee = log.cleaningFee || 0;
+                const cleaningCount = log.cleaningCount || 0;
+                const poolHeat = log.poolHeat || 0;
+                const tax = Number(log.tax) || 0;
+                const totalCleaning = cleaningFee * cleaningCount;
+                const totalPoolHeat = poolHeat;
+
+                const accommodationTotal = (log.billableAmount || 0) - totalCleaning - totalPoolHeat - tax;
+
+                // Detect Pricing Mode (Flat vs Nightly)
+                // If log.cost (Rate input) * nights ~= Total, it's Nightly.
+                // Otherwise (e.g. Rate == Total), it's Flat.
+                const isNightly = Math.abs((log.cost || 0) * nights - accommodationTotal) < 1;
+
+                const displayQuantity = isNightly ? nights : 1;
+                const displayRate = isNightly ? (log.cost || accommodationTotal / nights) : accommodationTotal;
+
+                // Accommodation
+                items.push({
+                    description: isNightly ? 'Guest Stay' : `Guest Stay (${nights} Nights)`,
+                    quantity: displayQuantity,
+                    rate: displayRate,
+                    amount: accommodationTotal,
+                    type: 'STAY',
+                    originalLogId: log.id,
+                    dates: `${formatDate(log.checkIn!)} to ${formatDate(log.checkOut!)}`
+                });
+
+                // Cleaning
+                if (totalCleaning > 0) {
+                    items.push({
+                        description: 'Cleaning Fee',
+                        quantity: cleaningCount,
+                        rate: cleaningFee,
+                        amount: totalCleaning,
+                        type: 'FEE',
+                        originalLogId: log.id,
+                        dates: ''
+                    });
+                }
+
+                // Pool Heat
+                if (totalPoolHeat > 0) {
+                    items.push({
+                        description: 'Pool Heat',
+                        quantity: 1,
+                        rate: totalPoolHeat,
+                        amount: totalPoolHeat,
+                        type: 'FEE',
+                        originalLogId: log.id,
+                        dates: ''
+                    });
+                }
+
+
+                return items;
+            }
+
+            // Standard Items (TIME, EXPENSE)
+            let rate = log.cost || 0;
             let quantity = 1;
             let amount = log.billableAmount || 0;
 
@@ -181,51 +269,21 @@ const Invoices: React.FC = () => {
                 rate = project?.hourlyRate || 0;
                 quantity = log.hours || 0;
                 amount = quantity * rate;
-            } else if (log.type === 'STAY') {
-                rate = log.cost || 0; // In STAY, cost stores the rate
-                // Calculate nights if possible, otherwise quantity 1 (flat fee)
-                if (log.checkIn && log.checkOut && rate > 0) {
-                    amount = log.billableAmount || 0;
-                    // Approximate nights to avoid floating point issues
-                    quantity = Math.round(amount / rate);
-                    // Or recalculate nights properly
-                    const start = new Date(log.checkIn);
-                    const end = new Date(log.checkOut);
-                    const diffDays = Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-                    // If amount ~= rate * diffDays, use diffDays. If flat fee, use 1.
-                    if (Math.abs(amount - (rate * diffDays)) < 0.1) {
-                        quantity = diffDays;
-                    } else {
-                        quantity = 1;
-                    }
-                }
-            } else {
-                // EXPENSE
-                rate = log.cost || 0;
-                quantity = 1;
             }
 
-            const dates = log.type === 'STAY' && log.checkIn && log.checkOut
-                ? `${formatDate(log.checkIn)} to ${formatDate(log.checkOut)}`
-                : log.type === 'TIME' && log.hours
-                    ? `${formatDate(log.date)} (${log.hours}h)`
-                    : formatDate(log.date);
-
             return {
-                description: log.type === 'STAY'
-                    ? `Guest Stay`
-                    : log.description,
+                description: log.description,
                 quantity,
                 rate,
                 amount,
                 type: log.type,
                 originalLogId: log.id,
-                dates
+                dates: log.type === 'TIME' && log.hours ? `${formatDate(log.date)} (${log.hours}h)` : formatDate(log.date)
             };
         });
 
         // Generate Schedule
-        let paymentSchedule: any[] = [];
+        let paymentSchedule: InvoiceSchedule[] = [];
         const initialPayment = Number(paymentsReceived) || 0;
         const remainingTotal = totals.total - initialPayment;
 
@@ -249,7 +307,7 @@ const Invoices: React.FC = () => {
         }
 
         // Create Initial Payment Record if applicable
-        const initialPaymentsList = [];
+        const initialPaymentsList: InvoicePayment[] = [];
         if (initialPayment > 0) {
             initialPaymentsList.push({
                 id: crypto.randomUUID(),
@@ -277,6 +335,7 @@ const Invoices: React.FC = () => {
             items: invoiceItems,
             paymentSchedule: paymentSchedule.length > 0 ? paymentSchedule : [],
             subtotal: totals.subtotal,
+            discount: totals.discount,
             tax: totals.tax,
             total: totals.total,
             payments: initialPaymentsList.length > 0 ? initialPaymentsList : [],
@@ -296,28 +355,91 @@ const Invoices: React.FC = () => {
         try {
             const draft = await draftInvoiceEmail(clientId, total, projectNames);
             setEmailDraft(draft);
-        } catch (error) {
+        } catch (error: unknown) {
             console.error(error);
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            alert(`Failed to draft email with AI: ${message}. using standard template instead.`);
+            // Fallback to standard email
+            handleSendEmail({
+                clientId: clientId,
+                invoiceNumber: 'DRAFT',
+                total: Number(total)
+            });
         } finally {
             setEmailLoading(false);
         }
     };
 
-    const handleSendEmail = (invoice: any) => {
-        // Find Email
-        const project = projects.find(p => p.client === invoice.clientId && p.email);
-        const email = project?.email;
+    const handleSendEmail = (invoice: EmailInvoice) => {
+        // Find Email - Search for ANY project associated with this client that has an email
+        const project = projects.find(p => (p.name === invoice.clientId || p.client === invoice.clientId) && p.email);
+        const email = project?.email || '';
 
         if (!email) {
-            alert(`No email found for guest "${invoice.clientId}". Please add an email in the Guest Folio.`);
-            return;
+            if (!confirm(`No email found for guest "${invoice.clientId}". Open email client anyway?`)) {
+                return;
+            }
         }
 
-        const subject = `Invoice ${invoice.invoiceNumber} from BESVECA, LLC`;
-        const body = `Hi ${invoice.clientId.split(' ')[0]},\n\nPlease find attached invoice ${invoice.invoiceNumber} for your recent stay.\n\nThank you,\nBESVECA, LLC`;
+        // Determine Context
+        let nights = 0;
+        let arrival = '';
+        let departure = '';
+        let propertyName = 'BESVECA House'; // Default
 
-        const mailto = `mailto:${email}?cc=jessica@tribute.studio&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        window.open(mailto, '_blank');
+        // Try from Saved Items
+        if (invoice.items) {
+            const stayItem = invoice.items.find((i: InvoiceItem) => i.type === 'STAY' || i.description === 'Guest Stay');
+            if (stayItem) {
+                nights = stayItem.quantity;
+                const parts = (stayItem.dates || '').split(' to ');
+                if (parts.length === 2) {
+                    arrival = parts[0];
+                    departure = parts[1];
+                }
+            }
+        }
+        // Try from Filtered Logs (Draft)
+        else {
+            const stayLog = filteredLogs.find(l => l.type === 'STAY');
+            if (stayLog && stayLog.checkIn && stayLog.checkOut) {
+                const start = new Date(stayLog.checkIn);
+                const end = new Date(stayLog.checkOut);
+                nights = Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                arrival = formatDate(stayLog.checkIn);
+                departure = formatDate(stayLog.checkOut);
+            }
+        }
+
+        // Determine Property Name
+        const proj = projects.find(p => p.name === invoice.clientId || p.client === invoice.clientId);
+        const prop = proj?.client;
+        if (prop === 'BESVECA') propertyName = 'BESVECA House';
+        if (prop === 'Skyhouse') propertyName = 'Sky House';
+
+        const firstName = invoice.clientId.split(' ')[0];
+        const invoiceNumber = invoice.invoiceNumber;
+        const total = typeof invoice.total === 'number' ? invoice.total.toFixed(2) : invoice.total;
+
+        const subject = `Invoice | Your upcoming stay at the ${propertyName}`;
+        const body = `Hi ${firstName},
+
+Please find the attached invoice ${invoiceNumber} for your upcoming stay.
+We have you booked for ${nights} night${nights !== 1 ? 's' : ''} starting on ${arrival} checking out on ${departure}
+
+The grand total for your stay is $${total}. See attached invoice for details.
+
+Feel free to check-in anytime after 3PM. For security purposes check-in information will be provided to you on the morning of your stay.
+
+Should you have any other questions please don't hesitate to reach out.
+
+Cheers,
+Jessica`;
+
+        alert("Please attach the PDF invoice manually in the Gmail window.");
+
+        const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&cc=jessica@tribute.studio&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.open(gmailUrl, '_blank');
     };
 
     const handleRecordPayment = async () => {
@@ -355,16 +477,16 @@ const Invoices: React.FC = () => {
         setPaymentNote('');
     };
 
-    const getPaidAmount = (invoice: any) => {
-        return (invoice.payments || []).reduce((sum: number, p: any) => sum + p.amount, 0);
+    const getPaidAmount = (invoice: Invoice) => {
+        return (invoice.payments || []).reduce((sum: number, p: InvoicePayment) => sum + p.amount, 0);
     };
 
     return (
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
-                    <h1 className="text-4xl font-bold text-slate-900 mb-2">Billing Center</h1>
-                    <p className="text-slate-500">Generate and manage invoices.</p>
+                <h1 className="text-4xl font-bold text-slate-900 mb-2">Billing Center</h1>
+                <p className="text-slate-500">Generate guest invoices and track payments.</p>
                 </div>
                 {/* Tabs */}
                 <div className="bg-slate-100 p-1 rounded-xl flex gap-1">
@@ -399,7 +521,7 @@ const Invoices: React.FC = () => {
                     {/* Filter Controls (Existing) */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 print:hidden mb-6">
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Guests</label>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Guest</label>
                             <select
                                 className="w-full bg-slate-50 border-none rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-slate-900"
                                 value={selectedClientId}
@@ -413,14 +535,14 @@ const Invoices: React.FC = () => {
                             </select>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Project Scope</label>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Guest Record</label>
                             <select
                                 className="w-full bg-slate-50 border-none rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-slate-900 disabled:opacity-50"
                                 value={selectedProjectId}
                                 onChange={(e) => setSelectedProjectId(e.target.value)}
                                 disabled={!selectedClientId}
                             >
-                                <option value="ALL">All Active Projects</option>
+                                <option value="ALL">All Stays & Expenses</option>
                                 {clientProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
                         </div>
@@ -430,7 +552,7 @@ const Invoices: React.FC = () => {
                             <select
                                 className="w-full bg-slate-50 border-none rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-slate-900 disabled:opacity-50"
                                 value={dateFilterType}
-                                onChange={(e) => setDateFilterType(e.target.value as any)}
+                                onChange={(e) => setDateFilterType(e.target.value as DateFilterType)}
                                 disabled={!selectedClientId}
                             >
                                 <option value="ALL">All Time</option>
@@ -497,6 +619,20 @@ const Invoices: React.FC = () => {
                                     onChange={(e) => setCustomDueDate(e.target.value)}
                                 />
                             )}
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Discount (%)</label>
+                            <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                className="w-full bg-slate-50 border-none rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-slate-900 disabled:opacity-50"
+                                value={discountPercent}
+                                onChange={(e) => setDiscountPercent(e.target.value)}
+                                disabled={!selectedClientId}
+                                placeholder="0"
+                            />
                         </div>
                     </div>
 
@@ -583,7 +719,7 @@ const Invoices: React.FC = () => {
                                         <input
                                             type="text"
                                             className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-slate-900"
-                                            placeholder="e.g. Deposit via Wire"
+                                            placeholder="e.g. Deposit received"
                                             value={paymentsReceivedNote}
                                             onChange={(e) => setPaymentsReceivedNote(e.target.value)}
                                         />
@@ -745,13 +881,24 @@ const Invoices: React.FC = () => {
                                                 </button>
                                                 <button
                                                     onClick={() => {
-                                                        const projectNames = Array.from(new Set(invoice.items.map((i: any) => i.description.split(' - ')[0])));
-                                                        handleDraftEmail(invoice.clientId, invoice.total.toFixed(2), projectNames as string[]);
+                                                        const projectNames = Array.from(new Set(invoice.items.map((i: InvoiceItem) => i.description.split(' - ')[0])));
+                                                        handleDraftEmail(invoice.clientId, invoice.total.toFixed(2), projectNames);
                                                     }}
                                                     className="text-slate-400 hover:text-slate-900 p-1.5"
                                                     title="Draft Email with AI"
                                                 >
                                                     <Sparkle size={18} weight="duotone" />
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        if (confirm('Are you sure you want to delete this invoice? This action cannot be undone.')) {
+                                                            deleteInvoice(invoice.id);
+                                                        }
+                                                    }}
+                                                    className="text-red-300 hover:text-red-500 p-1.5"
+                                                    title="Delete Invoice"
+                                                >
+                                                    <Trash size={18} weight="duotone" />
                                                 </button>
                                             </td>
                                         </tr>
@@ -779,6 +926,17 @@ const Invoices: React.FC = () => {
                                         Save Invoice
                                     </button>
                                     <button
+                                        onClick={() => handleSendEmail({
+                                            clientId: selectedClientId,
+                                            invoiceNumber: draftInvoiceNumber,
+                                            total: totals.total
+                                        })}
+                                        className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-bold hover:bg-slate-200 transition-colors"
+                                    >
+                                        <Envelope size={16} weight="duotone" />
+                                        Send Email
+                                    </button>
+                                    <button
                                         onClick={() => handleDraftEmail(selectedClientId, totals.total.toFixed(2), clientProjects.map(p => p.name))}
                                         className="flex items-center gap-2 px-4 py-2 bg-sky-50 text-sky-600 rounded-lg text-sm font-bold hover:bg-sky-100 transition-colors"
                                     >
@@ -786,7 +944,12 @@ const Invoices: React.FC = () => {
                                         Draft with AI
                                     </button>
                                     <button
-                                        onClick={() => window.print()}
+                                        onClick={() => {
+                                            const originalTitle = document.title;
+                                            document.title = `BESVECA, LLC Invoice ${selectedClientId || ''}`;
+                                            window.print();
+                                            setTimeout(() => document.title = originalTitle, 100);
+                                        }}
                                         className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors"
                                     >
                                         Print PDF
@@ -802,8 +965,22 @@ const Invoices: React.FC = () => {
                                     {/* Header */}
                                     <div className="flex justify-between items-start mb-8 border-b border-slate-200 pb-8">
                                         <div>
+                                            <style>{`
+                                                @media print {
+                                                    @page { margin: 0; size: auto; }
+                                                    body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                                                    #invoice-bill {
+                                                        width: 100%;
+                                                        max-width: none;
+                                                        margin: 0;
+                                                        padding: 2cm; /* uniform margin */
+                                                        box-sizing: border-box;
+                                                    }
+                                                    .print-hidden { display: none !important; }
+                                                }
+                                            `}</style>
                                             <div className="flex items-center gap-3 mb-4">
-                                                <div className="w-8 h-8 flex items-center justify-center">
+                                                <div className="w-16 h-16 flex items-center justify-center overflow-hidden">
                                                     <img src="/besveca-logo.svg" alt="BESVECA" className="w-full h-full object-contain" />
                                                 </div>
                                                 <span className="font-bold text-lg tracking-tight">{COMPANY_CONFIG.name}</span>
@@ -824,10 +1001,26 @@ const Invoices: React.FC = () => {
                                     </div>
 
                                     {/* Bill To & Context */}
-                                    <div className="grid grid-cols-2 gap-8 mb-8">
+                                    <div className="grid grid-cols-2 gap-8 mb-8 mt-2">
                                         <div>
                                             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Bill To</h3>
-                                            <p className="text-sm font-bold text-slate-900">{selectedClientId}</p>
+                                            {(() => {
+                                                const targetProject = selectedProjectId !== 'ALL'
+                                                    ? projects.find(p => p.id === selectedProjectId)
+                                                    : (filteredLogs.length > 0 ? projects.find(p => p.id === filteredLogs[0].projectId) : null);
+
+                                                if (targetProject) {
+                                                    return (
+                                                        <div className="text-sm font-medium text-slate-600 space-y-0.5">
+                                                            <p className="font-bold text-slate-900 text-base mb-1">{targetProject.name}</p>
+                                                            {targetProject.email && <p>{targetProject.email}</p>}
+                                                            {targetProject.phone && <p>{targetProject.phone}</p>}
+                                                            {targetProject.address && <p className="whitespace-pre-line leading-snug">{targetProject.address}</p>}
+                                                        </div>
+                                                    );
+                                                }
+                                                return <p className="text-sm font-bold text-slate-900">{selectedClientId}</p>;
+                                            })()}
                                         </div>
                                         <div className="text-right">
                                             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Terms</h3>
@@ -846,42 +1039,86 @@ const Invoices: React.FC = () => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 text-[11px]">
-                                            {filteredLogs.map((log) => {
+                                            {sortedLogs.map((log) => {
                                                 const project = projects.find(p => p.id === log.projectId);
+
+                                                if (log.type === 'STAY') {
+                                                    const checkIn = new Date(log.checkIn!);
+                                                    const checkOut = new Date(log.checkOut!);
+                                                    const nights = Math.ceil(Math.abs(checkOut.getTime() - checkIn.getTime()) / (86400000)) || 1;
+                                                    const datesStr = `${formatDate(log.checkIn!)} to ${formatDate(log.checkOut!)}`;
+
+                                                    const cleaningFee = log.cleaningFee || 0;
+                                                    const cleaningCount = log.cleaningCount || 0;
+                                                    const poolHeat = log.poolHeat || 0;
+                                                    const tax = Number(log.tax) || 0;
+                                                    const totalCleaning = cleaningFee * cleaningCount;
+                                                    const totalPoolHeat = poolHeat;
+
+                                                    const accommodationTotal = (log.billableAmount || 0) - totalCleaning - totalPoolHeat - tax;
+
+                                                    const isNightly = Math.abs((log.cost || 0) * nights - accommodationTotal) < 1;
+                                                    const displayQuantity = isNightly ? nights : 1;
+                                                    const displayRate = isNightly ? (log.cost || accommodationTotal / nights) : accommodationTotal;
+                                                    const displayDesc = isNightly ? 'Guest Stay' : `Guest Stay (${nights} Nights)`;
+
+                                                    const rows = [
+                                                        <tr key={log.id}>
+                                                            <td className="py-2 pr-4 align-top">
+                                                                <span className="font-bold block text-slate-900">{displayDesc}</span>
+                                                                <span className="block text-[10px] text-slate-500 mt-0.5">{displayQuantity} {isNightly ? (displayQuantity !== 1 ? 'Nights' : 'Night') : 'Flat Rate'}</span>
+                                                            </td>
+                                                            <td className="py-2 text-center align-top text-slate-500">{datesStr}</td>
+                                                            <td className="py-2 text-right align-top text-slate-500">${formatCurrency(displayRate)}</td>
+                                                            <td className="py-2 text-right align-top font-bold text-slate-900">${formatCurrency(accommodationTotal)}</td>
+                                                        </tr>
+                                                    ];
+
+                                                    if (totalCleaning > 0) {
+                                                        rows.push(
+                                                            <tr key={`${log.id}-clean`}>
+                                                                <td className="py-2 pr-4 align-top"><span className="font-bold block text-slate-900">Cleaning Fee</span></td>
+                                                                <td className="py-2 text-center align-top text-slate-500"></td>
+                                                                <td className="py-2 text-right align-top text-slate-500">${formatCurrency(cleaningFee)}</td>
+                                                                <td className="py-2 text-right align-top font-bold text-slate-900">${formatCurrency(totalCleaning)}</td>
+                                                            </tr>
+                                                        );
+                                                    }
+
+                                                    if (totalPoolHeat > 0) {
+                                                        rows.push(
+                                                            <tr key={`${log.id}-pool`}>
+                                                                <td className="py-2 pr-4 align-top"><span className="font-bold block text-slate-900">Pool Heat</span></td>
+                                                                <td className="py-2 text-center align-top text-slate-500"></td>
+                                                                <td className="py-2 text-right align-top text-slate-500">${formatCurrency(totalPoolHeat)}</td>
+                                                                <td className="py-2 text-right align-top font-bold text-slate-900">${formatCurrency(totalPoolHeat)}</td>
+                                                            </tr>
+                                                        );
+                                                    }
+
+
+                                                    return rows;
+                                                }
+
+                                                // Regular Items
                                                 const amount = log.type === 'TIME' ? (log.hours! * project!.hourlyRate) : log.billableAmount!;
-
-                                                // Display Logic matches handleSaveInvoice
-                                                const description = log.type === 'STAY' ? 'Guest Stay' : log.description;
-                                                const dates = log.type === 'STAY' && log.checkIn && log.checkOut
-                                                    ? `${formatDate(log.checkIn)} to ${formatDate(log.checkOut)}`
-                                                    : log.type === 'TIME' && log.hours
-                                                        ? `${formatDate(log.date)} (${log.hours}h)`
-                                                        : formatDate(log.date);
-
+                                                const description = log.description;
+                                                const dates = log.type === 'TIME' && log.hours ? `${formatDate(log.date)} (${log.hours}h)` : formatDate(log.date);
                                                 const fee = log.type === 'TIME' ? project?.hourlyRate : log.cost;
-
-                                                const nights = log.type === 'STAY' && log.checkIn && log.checkOut
-                                                    ? Math.ceil(Math.abs(new Date(log.checkOut).getTime() - new Date(log.checkIn).getTime()) / (1000 * 60 * 60 * 24))
-                                                    : 0;
 
                                                 return (
                                                     <tr key={log.id}>
                                                         <td className="py-2 pr-4 align-top">
                                                             <span className="font-bold block text-slate-900">{description}</span>
-                                                            {log.type === 'STAY' && nights > 0 && (
-                                                                <span className="block text-[10px] text-slate-500 mt-0.5">
-                                                                    {nights} Night{nights !== 1 ? 's' : ''}
-                                                                </span>
-                                                            )}
                                                         </td>
                                                         <td className="py-2 text-center align-top text-slate-500">
                                                             {dates}
                                                         </td>
                                                         <td className="py-2 text-right align-top text-slate-500">
-                                                            ${fee?.toFixed(2)}
+                                                            ${fee ? formatCurrency(fee) : '0.00'}
                                                         </td>
                                                         <td className="py-2 text-right align-top font-bold text-slate-900">
-                                                            ${amount.toFixed(2)}
+                                                            ${formatCurrency(amount)}
                                                         </td>
                                                     </tr>
                                                 );
@@ -894,25 +1131,31 @@ const Invoices: React.FC = () => {
                                         <div className="w-48 text-[11px]">
                                             <div className="flex justify-between mb-1 text-slate-500">
                                                 <span>Subtotal</span>
-                                                <span>${totals.total.toFixed(2)}</span>
+                                                <span>${formatCurrency(totals.subtotal)}</span>
                                             </div>
+                                            {totals.discount > 0 && (
+                                                <div className="flex justify-between mb-1 text-emerald-600 font-medium">
+                                                    <span>Discount ({discountPercent}%)</span>
+                                                    <span>-${formatCurrency(totals.discount)}</span>
+                                                </div>
+                                            )}
                                             <div className="flex justify-between mb-2 text-slate-500">
-                                                <span>Tax</span>
-                                                <span>$0.00</span>
+                                                <span>PS TOT TAX</span>
+                                                <span>${formatCurrency(totals.tax)}</span>
                                             </div>
                                             <div className={`flex justify-between font-bold text-sm text-slate-900 border-t border-slate-200 pt-2 ${Number(paymentsReceived) > 0 ? 'mb-2' : ''}`}>
                                                 <span>Total</span>
-                                                <span>${totals.total.toFixed(2)}</span>
+                                                <span>${formatCurrency(totals.total)}</span>
                                             </div>
                                             {Number(paymentsReceived) > 0 && (
                                                 <>
                                                     <div className="flex justify-between mb-2 text-emerald-600 font-medium">
                                                         <span>Payment Received</span>
-                                                        <span>-${Number(paymentsReceived).toFixed(2)}</span>
+                                                        <span>-${formatCurrency(Number(paymentsReceived))}</span>
                                                     </div>
                                                     <div className="flex justify-between font-bold text-base text-slate-900 border-t-2 border-slate-900 pt-2">
                                                         <span>Balance Due</span>
-                                                        <span>${(totals.total - Number(paymentsReceived)).toFixed(2)}</span>
+                                                        <span>${formatCurrency(totals.total - Number(paymentsReceived))}</span>
                                                     </div>
                                                 </>
                                             )}
@@ -954,12 +1197,19 @@ const Invoices: React.FC = () => {
                                     {/* Footer */}
                                     <div className="mt-12 pt-8 border-t border-slate-100 text-center">
                                         <div className="mb-8 text-[10px] text-slate-500 leading-relaxed font-medium">
-                                            <p className="font-bold uppercase tracking-widest text-slate-400 mb-2">Remit Payment To</p>
-                                            <p>{COMPANY_CONFIG.bank.name}</p>
-                                            <p>{COMPANY_CONFIG.bank.address}</p>
-                                            <p>Routing No: {COMPANY_CONFIG.bank.routing} &nbsp;&bull;&nbsp; Account No: {COMPANY_CONFIG.bank.account}</p>
+                                            <p className="font-bold uppercase tracking-widest text-slate-400 mb-2">Payment Instructions</p>
+                                            <p>Please use the payment instructions provided directly by BESVECA, LLC.</p>
+                                            <p>For security, bank details are not printed in this app or invoice preview.</p>
                                         </div>
-                                        <p className="text-[10px] text-slate-300">Thank you for your business.</p>
+                                        <p className="text-[10px] text-slate-300">
+                                            {(() => {
+                                                const proj = projects.find(p => p.name === selectedClientId || p.client === selectedClientId);
+                                                const prop = proj?.client;
+                                                if (prop === 'BESVECA') return 'Thank you for staying at the BESVECA House';
+                                                if (prop === 'Skyhouse') return 'Thank you for staying at the Sky House';
+                                                return 'Thank you for your business.';
+                                            })()}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -981,9 +1231,31 @@ const Invoices: React.FC = () => {
                                             {emailDraft}
                                         </pre>
                                     </div>
-                                    <button onClick={() => navigator.clipboard.writeText(emailDraft)} className="mt-4 flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold mx-auto">
-                                        Copy to Clipboard
-                                    </button>
+                                    <div className="flex justify-center gap-3 mt-6">
+                                        <button onClick={() => {
+                                            navigator.clipboard.writeText(emailDraft);
+                                            alert('Copied to clipboard!');
+                                        }} className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors shadow-sm">
+                                            Copy Text
+                                        </button>
+                                        <button onClick={() => {
+                                            const project = projects.find(p => (p.client === selectedClientId || p.name === selectedClientId) && p.email);
+                                            const email = project?.email || '';
+
+                                            if (!email) {
+                                                if (!confirm(`No email found for guest "${selectedClientId}". Open email client anyway?`)) {
+                                                    return;
+                                                }
+                                            }
+
+                                            const subject = `Invoice Update - BESVECA, LLC`;
+                                            const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&cc=jessica@tribute.studio&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailDraft)}`;
+                                            window.open(gmailUrl, '_blank');
+                                        }} className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors shadow-lg shadow-slate-900/20">
+                                            <Envelope size={18} weight="bold" />
+                                            Send Email
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>
