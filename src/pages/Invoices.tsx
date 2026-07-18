@@ -83,6 +83,11 @@ const getInvoiceLineRank = (log: LogItem) => {
     return 8;
 };
 
+const isInvoiceNote = (log: LogItem) =>
+    log.type === 'EXPENSE' &&
+    Number(log.billableAmount || 0) === 0 &&
+    Number(log.cost || 0) === 0;
+
 const Invoices: React.FC = () => {
     const { logs, projects, addInvoice, invoices, updateInvoice, deleteInvoice } = useApp();
     const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
@@ -163,6 +168,16 @@ const Invoices: React.FC = () => {
         if (dateComparison !== 0) return dateComparison;
         return getInvoiceLineRank(a) - getInvoiceLineRank(b);
     }), [filteredLogs]);
+
+    const invoiceLineLogs = useMemo(
+        () => sortedLogs.filter(log => !isInvoiceNote(log)),
+        [sortedLogs]
+    );
+
+    const invoiceNoteLogs = useMemo(
+        () => sortedLogs.filter(isInvoiceNote),
+        [sortedLogs]
+    );
 
     const primaryStay = useMemo(
         () => sortedLogs.find(isStayWithDates) || null,
@@ -300,7 +315,7 @@ const Invoices: React.FC = () => {
     const handleSaveInvoice = async () => {
         if (!selectedClientId) return;
 
-        const invoiceItems: InvoiceItem[] = sortedLogs.flatMap(log => {
+        const invoiceItems: InvoiceItem[] = invoiceLineLogs.flatMap(log => {
             const project = projects.find(p => p.id === log.projectId);
 
             if (log.type === 'STAY') {
@@ -462,6 +477,7 @@ const Invoices: React.FC = () => {
             dueDate: calculateDueDate(),
             terms: paymentTerms,
             items: invoiceItems,
+            notes: invoiceNoteLogs.map(log => log.description),
             paymentSchedule: paymentSchedule.length > 0 ? paymentSchedule : [],
             subtotal: totals.subtotal,
             discount: totals.discount,
@@ -1221,7 +1237,7 @@ Jessica`;
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 text-[11px]">
-                                            {sortedLogs.map((log) => {
+                                            {invoiceLineLogs.map((log) => {
                                                 const project = projects.find(p => p.id === log.projectId);
 
                                                 if (log.type === 'STAY') {
@@ -1307,6 +1323,17 @@ Jessica`;
                                             })}
                                         </tbody>
                                     </table>
+
+                                    {invoiceNoteLogs.length > 0 && (
+                                        <section className="mb-8 rounded-xl border border-slate-200 bg-slate-50/60 px-5 py-4">
+                                            <h3 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Notes</h3>
+                                            <ul className="space-y-2 text-[11px] leading-relaxed text-slate-600">
+                                                {invoiceNoteLogs.map(log => (
+                                                    <li key={log.id}>{log.description}</li>
+                                                ))}
+                                            </ul>
+                                        </section>
+                                    )}
 
                                     {/* Totals Section */}
                                     <div className="flex justify-end border-t border-slate-200 pt-4">

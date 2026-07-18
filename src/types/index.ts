@@ -117,6 +117,7 @@ export interface Invoice {
   dueDate: string;
   terms: string;
   items: InvoiceItem[];
+  notes?: string[];
   subtotal: number;
   discount?: number;
   tax: number;
