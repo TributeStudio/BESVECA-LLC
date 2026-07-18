@@ -73,9 +73,9 @@ const getPropertyDisplayName = (property?: string) => {
 const getInvoiceLineRank = (log: LogItem) => {
     if (log.type === 'STAY') return 0;
     const description = log.description.toLowerCase();
-    if (description.includes('content creator discount')) return 1;
-    if (description.includes('cleaning')) return 2;
-    if (description.includes('estimated taxes')) return 3;
+    if (description.includes('cleaning')) return 1;
+    if (description.includes('estimated taxes')) return 2;
+    if (description.includes('content creator discount')) return 3;
     if (description.includes('tax adjustment')) return 4;
     if (description.includes('booking confirmation')) return 5;
     if (description.includes('cancellation policy')) return 6;
@@ -204,6 +204,19 @@ const Invoices: React.FC = () => {
     const invoiceLineLogs = useMemo(
         () => sortedLogs.filter(log => !isInvoiceNote(log)),
         [sortedLogs]
+    );
+
+    const preDiscountSubtotal = useMemo(() => invoiceLineLogs.reduce((sum, log) => {
+        const project = projects.find(p => p.id === log.projectId);
+        const amount = log.type === 'TIME'
+            ? (log.hours || 0) * (project?.hourlyRate || 0)
+            : Number(log.billableAmount || 0);
+        return amount > 0 ? sum + amount : sum;
+    }, 0), [invoiceLineLogs, projects]);
+
+    const hasExplicitAdjustments = useMemo(
+        () => invoiceLineLogs.some(log => Number(log.billableAmount || 0) < 0),
+        [invoiceLineLogs]
     );
 
     const invoiceNoteLogs = useMemo(
@@ -1344,8 +1357,8 @@ Jessica`;
                                                 const dates = log.type === 'TIME' && log.hours ? `${formatDate(log.date)} (${log.hours}h)` : formatDate(log.date);
                                                 const fee = log.type === 'TIME' ? project?.hourlyRate : log.cost;
 
-                                                return (
-                                                    <tr key={log.id}>
+                                                const itemRow = (
+                                                    <tr>
                                                         <td className="py-2 pr-4 align-top">
                                                             <span className="font-bold block text-slate-900">{description}</span>
                                                         </td>
@@ -1360,6 +1373,20 @@ Jessica`;
                                                         </td>
                                                     </tr>
                                                 );
+
+                                                if (description.toLowerCase().includes('estimated taxes') && hasExplicitAdjustments) {
+                                                    return (
+                                                        <React.Fragment key={log.id}>
+                                                            {itemRow}
+                                                            <tr className="border-y border-slate-300 bg-slate-50 font-bold text-slate-900">
+                                                                <td colSpan={3} className="py-2 text-right uppercase tracking-wide">Subtotal before discounts</td>
+                                                                <td className="py-2 text-right">${formatCurrency(preDiscountSubtotal)}</td>
+                                                            </tr>
+                                                        </React.Fragment>
+                                                    );
+                                                }
+
+                                                return <React.Fragment key={log.id}>{itemRow}</React.Fragment>;
                                             })}
                                         </tbody>
                                     </table>
@@ -1367,22 +1394,26 @@ Jessica`;
                                     {/* Totals Section */}
                                     <div className="flex justify-end border-t border-slate-200 pt-4">
                                         <div className="w-48 text-[11px]">
-                                            <div className="flex justify-between mb-1 text-slate-500">
-                                                <span>Subtotal</span>
-                                                <span>${formatCurrency(totals.subtotal)}</span>
-                                            </div>
-                                            {totals.discount > 0 && (
+                                            {!hasExplicitAdjustments && (
+                                                <div className="flex justify-between mb-1 text-slate-500">
+                                                    <span>Subtotal</span>
+                                                    <span>${formatCurrency(totals.subtotal)}</span>
+                                                </div>
+                                            )}
+                                            {!hasExplicitAdjustments && totals.discount > 0 && (
                                                 <div className="flex justify-between mb-1 text-emerald-600 font-medium">
                                                     <span>Discount ({discountPercent}%)</span>
                                                     <span>-${formatCurrency(totals.discount)}</span>
                                                 </div>
                                             )}
-                                            <div className="flex justify-between mb-2 text-slate-500">
-                                                <span>PS TOT TAX</span>
-                                                <span>${formatCurrency(totals.tax)}</span>
-                                            </div>
+                                            {!hasExplicitAdjustments && (
+                                                <div className="flex justify-between mb-2 text-slate-500">
+                                                    <span>PS TOT TAX</span>
+                                                    <span>${formatCurrency(totals.tax)}</span>
+                                                </div>
+                                            )}
                                             <div className={`flex justify-between font-bold text-sm text-slate-900 border-t border-slate-200 pt-2 ${Number(paymentsReceived) > 0 ? 'mb-2' : ''}`}>
-                                                <span>Total</span>
+                                                <span>{hasExplicitAdjustments ? 'Final Total' : 'Total'}</span>
                                                 <span>${formatCurrency(totals.total)}</span>
                                             </div>
                                             {Number(paymentsReceived) > 0 && (
