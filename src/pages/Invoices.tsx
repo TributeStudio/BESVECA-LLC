@@ -70,6 +70,19 @@ const getPropertyDisplayName = (property?: string) => {
     return 'BESVECA House';
 };
 
+const getInvoiceLineRank = (log: LogItem) => {
+    if (log.type === 'STAY') return 0;
+    const description = log.description.toLowerCase();
+    if (description.includes('discount')) return 1;
+    if (description.includes('cleaning')) return 2;
+    if (description.includes('booking confirmation')) return 3;
+    if (description.includes('cancellation policy')) return 4;
+    if (description.includes('direct-booking savings')) return 5;
+    if (description.includes('content creator deliverables')) return 6;
+    if (description.includes('payment request')) return 7;
+    return 8;
+};
+
 const Invoices: React.FC = () => {
     const { logs, projects, addInvoice, invoices, updateInvoice, deleteInvoice } = useApp();
     const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
@@ -146,8 +159,15 @@ const Invoices: React.FC = () => {
     const sortedLogs = useMemo(() => [...filteredLogs].sort((a, b) => {
         const dateA = (a.type === 'STAY' && a.checkIn) ? a.checkIn : a.date;
         const dateB = (b.type === 'STAY' && b.checkIn) ? b.checkIn : b.date;
-        return dateA.localeCompare(dateB);
+        const dateComparison = dateA.localeCompare(dateB);
+        if (dateComparison !== 0) return dateComparison;
+        return getInvoiceLineRank(a) - getInvoiceLineRank(b);
     }), [filteredLogs]);
+
+    const primaryStay = useMemo(
+        () => sortedLogs.find(isStayWithDates) || null,
+        [sortedLogs]
+    );
 
     const formatCurrency = (amount: number) => amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -193,23 +213,29 @@ const Invoices: React.FC = () => {
     const totals = useMemo(() => {
         let subtotal = 0;
         let tax = 0;
+        let discountEligibleAccommodation = 0;
         filteredLogs.forEach(l => {
             const project = projects.find(p => p.id === l.projectId);
             if (l.type === 'TIME' && l.hours && project) {
                 subtotal += l.hours * project.hourlyRate;
             } else if ((l.type === 'EXPENSE' || l.type === 'STAY') && l.billableAmount) {
                 const logTax = Number(l.tax) || 0;
-                subtotal += (l.billableAmount - logTax);
+                const preTaxAmount = l.billableAmount - logTax;
+                subtotal += preTaxAmount;
                 tax += logTax;
+                if (l.type === 'STAY') {
+                    const cleaningTotal = (Number(l.cleaningCount) || 0) * (Number(l.cleaningFee) || 0);
+                    const poolHeatTotal = Number(l.poolHeat) || 0;
+                    discountEligibleAccommodation += Math.max(0, preTaxAmount - cleaningTotal - poolHeatTotal);
+                }
             }
         });
 
         const discountRate = Number(discountPercent) / 100 || 0;
-        const discountAmount = subtotal * discountRate;
-        const adjustedTax = tax * (1 - discountRate); // Tax scales with discount
-        const total = (subtotal - discountAmount) + adjustedTax;
+        const discountAmount = discountEligibleAccommodation * discountRate;
+        const total = (subtotal - discountAmount) + tax;
 
-        return { subtotal, discount: discountAmount, tax: adjustedTax, total };
+        return { subtotal, discount: discountAmount, tax, total };
     }, [filteredLogs, projects, discountPercent]);
 
     const remainingInvoiceTotal = useMemo(() =>
@@ -308,7 +334,7 @@ const Invoices: React.FC = () => {
                     amount: accommodationTotal,
                     type: 'STAY',
                     originalLogId: log.id,
-                    dates: `${formatDate(log.checkIn!)} to ${formatDate(log.checkOut!)}`
+                    dates: `${formatDate(log.checkIn!)} after ${COMPANY_CONFIG.stay.checkInTime} to ${formatDate(log.checkOut!)} before ${COMPANY_CONFIG.stay.checkOutTime}`
                 });
 
                 // Cleaning
@@ -1064,8 +1090,8 @@ Jessica`;
             {/* Invoice Modal Preview */}
             {
                 showPreview && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm print:p-0 print:bg-white print:fixed print:inset-0">
-                        <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col print:shadow-none print:max-w-none print:max-h-none print:rounded-none">
+                    <div className="print-modal-shell fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm">
+                        <div className="print-modal-card bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col">
                             <div className="p-6 border-b border-slate-100 flex items-center justify-between print:hidden">
                                 <h2 className="font-bold text-xl">Invoice Preview</h2>
                                 <div className="flex gap-2">
@@ -1131,7 +1157,7 @@ Jessica`;
                                             `}</style>
                                             <div className="flex items-center gap-3 mb-4">
                                                 <div className="w-16 h-16 flex items-center justify-center overflow-hidden">
-                                                    <img src="/besveca-logo.svg" alt="BESVECA" className="w-full h-full object-contain" />
+                                                    <img src="/besveca-logo.svg" alt="BESVECA" className="invoice-logo w-full h-full object-contain" />
                                                 </div>
                                                 <span className="font-bold text-lg tracking-tight">{COMPANY_CONFIG.name}</span>
                                             </div>
@@ -1175,6 +1201,12 @@ Jessica`;
                                         <div className="text-right">
                                             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Terms</h3>
                                             <p className="text-sm font-bold text-slate-900">{getDueDateLabel()}</p>
+                                            {primaryStay && (
+                                                <div className="mt-3 text-[11px] leading-relaxed text-slate-500">
+                                                    <p><span className="font-bold text-slate-900">Check-in:</span> {formatDate(primaryStay.checkIn)} after {COMPANY_CONFIG.stay.checkInTime}</p>
+                                                    <p><span className="font-bold text-slate-900">Check-out:</span> {formatDate(primaryStay.checkOut)} before {COMPANY_CONFIG.stay.checkOutTime}</p>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
@@ -1196,7 +1228,7 @@ Jessica`;
                                                     const checkIn = new Date(log.checkIn!);
                                                     const checkOut = new Date(log.checkOut!);
                                                     const nights = Math.ceil(Math.abs(checkOut.getTime() - checkIn.getTime()) / (86400000)) || 1;
-                                                    const datesStr = `${formatDate(log.checkIn!)} to ${formatDate(log.checkOut!)}`;
+                                                    const datesStr = `${formatDate(log.checkIn!)} after ${COMPANY_CONFIG.stay.checkInTime} to ${formatDate(log.checkOut!)} before ${COMPANY_CONFIG.stay.checkOutTime}`;
 
                                                     const cleaningFee = log.cleaningFee || 0;
                                                     const cleaningCount = log.cleaningCount || 0;
@@ -1364,6 +1396,11 @@ Jessica`;
 
                                     {/* Footer */}
                                     <div className="mt-12 pt-8 border-t border-slate-100 text-center">
+                                        <div className="mb-6 text-[10px] text-slate-500 leading-relaxed font-medium">
+                                            <p className="font-bold uppercase tracking-widest text-slate-400 mb-2">Stay Amenities</p>
+                                            <p>The hot tub is included with the stay.</p>
+                                            <p>Pool heat is optional and not included. If requested, pool heat is billed at ${COMPANY_CONFIG.stay.poolHeatDailyRate} per day for the entire duration of the stay.</p>
+                                        </div>
                                         <div className="mb-8 text-[10px] text-slate-500 leading-relaxed font-medium">
                                             <p className="font-bold uppercase tracking-widest text-slate-400 mb-2">Payment Instructions</p>
                                             <p>Please use the payment instructions provided directly by BESVECA, LLC.</p>
@@ -1433,8 +1470,8 @@ Jessica`;
 
             {/* Rental Agreement Modal Preview */}
             {showAgreementPreview && longStayAgreement && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm print:p-0 print:bg-white print:fixed print:inset-0">
-                    <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col print:shadow-none print:max-w-none print:max-h-none print:rounded-none">
+                <div className="print-modal-shell fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm">
+                    <div className="print-modal-card bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col">
                         <div className="p-6 border-b border-slate-100 flex items-center justify-between print:hidden">
                             <h2 className="font-bold text-xl">Rental Agreement Preview</h2>
                             <div className="flex gap-2">
@@ -1476,7 +1513,7 @@ Jessica`;
                                     <div>
                                         <div className="flex items-center gap-3 mb-4">
                                             <div className="w-16 h-16 flex items-center justify-center overflow-hidden">
-                                                <img src="/besveca-logo.svg" alt="BESVECA" className="w-full h-full object-contain" />
+                                                <img src="/besveca-logo.svg" alt="BESVECA" className="invoice-logo w-full h-full object-contain" />
                                             </div>
                                             <span className="font-bold text-lg tracking-tight">{COMPANY_CONFIG.name}</span>
                                         </div>
@@ -1508,8 +1545,8 @@ Jessica`;
                                         </div>
                                         <div>
                                             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Rental Period</h3>
-                                            <p><span className="font-bold text-slate-900">Check-in:</span> {formatDate(longStayAgreement.stay.checkIn)}</p>
-                                            <p><span className="font-bold text-slate-900">Check-out:</span> {formatDate(longStayAgreement.stay.checkOut)}</p>
+                                            <p><span className="font-bold text-slate-900">Check-in:</span> {formatDate(longStayAgreement.stay.checkIn)} after {COMPANY_CONFIG.stay.checkInTime}</p>
+                                            <p><span className="font-bold text-slate-900">Check-out:</span> {formatDate(longStayAgreement.stay.checkOut)} before {COMPANY_CONFIG.stay.checkOutTime}</p>
                                             <p className="text-slate-500">{longStayAgreement.nights} nights</p>
                                         </div>
                                     </section>
@@ -1566,6 +1603,7 @@ Jessica`;
                                             <li>Guests are responsible for maintaining the property in good condition and are liable for damage beyond normal wear.</li>
                                             <li>No smoking is allowed inside the property.</li>
                                             <li>Check-in instructions are provided before arrival. Standard check-in is after 3:00 PM and check-out is before 11:00 AM.</li>
+                                            <li>The hot tub is included. Optional pool heat is billed at ${COMPANY_CONFIG.stay.poolHeatDailyRate} per day for the full duration of the stay when requested.</li>
                                             <li>This agreement is governed by the laws of California.</li>
                                         </ul>
                                     </section>
