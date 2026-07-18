@@ -1442,6 +1442,12 @@ Jessica`;
                                         </section>
                                     )}
 
+                                    <section className="mx-auto mt-5 max-w-md rounded-xl border border-slate-300 px-5 py-4 text-center text-[10px] font-medium leading-relaxed text-slate-600">
+                                        <p className="mb-2 font-bold uppercase tracking-widest text-slate-500">Payment Instructions</p>
+                                        <p>Zelle to {COMPANY_CONFIG.payment.zelleRecipient}</p>
+                                        <p className="font-bold text-slate-900">{COMPANY_CONFIG.payment.zellePhone}</p>
+                                    </section>
+
                                     {invoiceNoteLogs.length > 0 && (
                                         <section className="mt-5 rounded-xl bg-slate-50/60 px-5 py-4">
                                             <h3 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Additional Notes</h3>
@@ -1510,11 +1516,6 @@ Jessica`;
                                             <p className="mx-auto max-w-[60ch]">
                                                 Hot tub heat is included with the stay. Pool heat is optional at ${COMPANY_CONFIG.stay.poolHeatDailyRate} per day and must be added for the full duration of the reservation.
                                             </p>
-                                        </div>
-                                        <div className="mx-auto mb-8 max-w-md rounded-xl border border-slate-300 px-5 py-4 text-center text-[10px] font-medium leading-relaxed text-slate-600">
-                                            <p className="mb-2 font-bold uppercase tracking-widest text-slate-500">Payment Instructions</p>
-                                            <p>Zelle to {COMPANY_CONFIG.payment.zelleRecipient}</p>
-                                            <p className="font-bold text-slate-900">{COMPANY_CONFIG.payment.zellePhone}</p>
                                         </div>
                                         <p className="text-[10px] text-slate-300">
                                             {(() => {
