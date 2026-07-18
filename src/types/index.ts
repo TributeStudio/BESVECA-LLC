@@ -118,6 +118,7 @@ export interface Invoice {
   terms: string;
   items: InvoiceItem[];
   notes?: string[];
+  paymentTerms?: string[];
   subtotal: number;
   discount?: number;
   tax: number;

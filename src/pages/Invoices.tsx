@@ -88,6 +88,28 @@ const isInvoiceNote = (log: LogItem) =>
     Number(log.billableAmount || 0) === 0 &&
     Number(log.cost || 0) === 0;
 
+const isPaymentOrBookingTerm = (log: LogItem) => {
+    if (!isInvoiceNote(log)) return false;
+    const description = log.description.toLowerCase();
+    return description.startsWith('send payment') ||
+        description.includes('down payment') ||
+        description.includes('remaining balance') ||
+        description.startsWith('cancellation policy') ||
+        description.startsWith('lily must send') ||
+        description.startsWith('space remains');
+};
+
+const getPaymentTermRank = (log: LogItem) => {
+    const description = log.description.toLowerCase();
+    if (description.startsWith('send payment')) return 0;
+    if (description.includes('down payment')) return 1;
+    if (description.includes('remaining balance') || description.startsWith('remaining $')) return 2;
+    if (description.startsWith('cancellation policy')) return 3;
+    if (description.startsWith('lily must send')) return 4;
+    if (description.startsWith('space remains')) return 5;
+    return 6;
+};
+
 const Invoices: React.FC = () => {
     const { logs, projects, addInvoice, invoices, updateInvoice, deleteInvoice } = useApp();
     const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
@@ -175,7 +197,12 @@ const Invoices: React.FC = () => {
     );
 
     const invoiceNoteLogs = useMemo(
-        () => sortedLogs.filter(isInvoiceNote),
+        () => sortedLogs.filter(log => isInvoiceNote(log) && !isPaymentOrBookingTerm(log)),
+        [sortedLogs]
+    );
+
+    const paymentTermLogs = useMemo(
+        () => sortedLogs.filter(isPaymentOrBookingTerm).sort((a, b) => getPaymentTermRank(a) - getPaymentTermRank(b)),
         [sortedLogs]
     );
 
@@ -478,6 +505,7 @@ const Invoices: React.FC = () => {
             terms: paymentTerms,
             items: invoiceItems,
             notes: invoiceNoteLogs.map(log => log.description),
+            paymentTerms: paymentTermLogs.map(log => log.description),
             paymentSchedule: paymentSchedule.length > 0 ? paymentSchedule : [],
             subtotal: totals.subtotal,
             discount: totals.discount,
@@ -1324,17 +1352,6 @@ Jessica`;
                                         </tbody>
                                     </table>
 
-                                    {invoiceNoteLogs.length > 0 && (
-                                        <section className="mb-8 rounded-xl border border-slate-200 bg-slate-50/60 px-5 py-4">
-                                            <h3 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Notes</h3>
-                                            <ul className="space-y-2 text-[11px] leading-relaxed text-slate-600">
-                                                {invoiceNoteLogs.map(log => (
-                                                    <li key={log.id}>{log.description}</li>
-                                                ))}
-                                            </ul>
-                                        </section>
-                                    )}
-
                                     {/* Totals Section */}
                                     <div className="flex justify-end border-t border-slate-200 pt-4">
                                         <div className="w-48 text-[11px]">
@@ -1370,6 +1387,28 @@ Jessica`;
                                             )}
                                         </div>
                                     </div>
+
+                                    {paymentTermLogs.length > 0 && (
+                                        <section className="mt-8 rounded-xl border border-slate-300 px-5 py-4">
+                                            <h3 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-500">Payment &amp; Booking Terms</h3>
+                                            <ul className="space-y-2 text-[11px] leading-relaxed text-slate-700">
+                                                {paymentTermLogs.map(log => (
+                                                    <li key={log.id}>{log.description}</li>
+                                                ))}
+                                            </ul>
+                                        </section>
+                                    )}
+
+                                    {invoiceNoteLogs.length > 0 && (
+                                        <section className="mt-5 rounded-xl bg-slate-50/60 px-5 py-4">
+                                            <h3 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Additional Notes</h3>
+                                            <ul className="space-y-2 text-[11px] leading-relaxed text-slate-600">
+                                                {invoiceNoteLogs.map(log => (
+                                                    <li key={log.id}>{log.description}</li>
+                                                ))}
+                                            </ul>
+                                        </section>
+                                    )}
 
                                     {/* Payment Schedule Section */}
                                     {paymentStructure !== 'FULL' && (
