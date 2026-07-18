@@ -343,7 +343,7 @@ const Invoices: React.FC = () => {
 
                 // Accommodation
                 items.push({
-                    description: isNightly ? 'Guest Stay' : `Guest Stay (${nights} Nights)`,
+                    description: isNightly ? 'Cost of stay (regular rate)' : `Cost of stay (regular rate — ${nights} nights)`,
                     quantity: displayQuantity,
                     rate: displayRate,
                     amount: accommodationTotal,
@@ -1232,7 +1232,7 @@ Jessica`;
                                             <tr className="border-b border-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-900">
                                                 <th className="py-2 text-left">Description</th>
                                                 <th className="py-2 text-center w-40">Dates / Duration</th>
-                                                <th className="py-2 text-right w-24">Fee</th>
+                                                <th className="py-2 text-right w-24">Rate</th>
                                                 <th className="py-2 text-right w-24">Amount</th>
                                             </tr>
                                         </thead>
@@ -1258,7 +1258,7 @@ Jessica`;
                                                     const isNightly = Math.abs((log.cost || 0) * nights - accommodationTotal) < 1;
                                                     const displayQuantity = isNightly ? nights : 1;
                                                     const displayRate = isNightly ? (log.cost || accommodationTotal / nights) : accommodationTotal;
-                                                    const displayDesc = isNightly ? 'Guest Stay' : `Guest Stay (${nights} Nights)`;
+                                                    const displayDesc = isNightly ? 'Cost of stay (regular rate)' : `Cost of stay (regular rate — ${nights} nights)`;
 
                                                     const rows = [
                                                         <tr key={log.id}>
