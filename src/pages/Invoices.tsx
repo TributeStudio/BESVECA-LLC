@@ -73,14 +73,15 @@ const getPropertyDisplayName = (property?: string) => {
 const getInvoiceLineRank = (log: LogItem) => {
     if (log.type === 'STAY') return 0;
     const description = log.description.toLowerCase();
-    if (description.includes('discount')) return 1;
-    if (description.includes('cleaning')) return 2;
-    if (description.includes('booking confirmation')) return 3;
-    if (description.includes('cancellation policy')) return 4;
-    if (description.includes('direct-booking savings')) return 5;
-    if (description.includes('content creator deliverables')) return 6;
-    if (description.includes('payment request')) return 7;
-    return 8;
+    if (description.includes('weekly discount')) return 1;
+    if (description.includes('content creator discount')) return 2;
+    if (description.includes('cleaning')) return 3;
+    if (description.includes('booking confirmation')) return 4;
+    if (description.includes('cancellation policy')) return 5;
+    if (description.includes('direct-booking savings')) return 6;
+    if (description.includes('content creator deliverables')) return 7;
+    if (description.includes('payment request')) return 8;
+    return 9;
 };
 
 const isInvoiceNote = (log: LogItem) =>
@@ -108,6 +109,14 @@ const getPaymentTermRank = (log: LogItem) => {
     if (description.startsWith('lily must send')) return 4;
     if (description.startsWith('space remains')) return 5;
     return 6;
+};
+
+const getInvoiceNoteRank = (log: LogItem) => {
+    const description = log.description.toLowerCase();
+    if (description.startsWith('original booking quote')) return 0;
+    if (description.startsWith('original estimated taxes')) return 1;
+    if (description.startsWith('airbnb')) return 2;
+    return 3;
 };
 
 const Invoices: React.FC = () => {
@@ -197,7 +206,9 @@ const Invoices: React.FC = () => {
     );
 
     const invoiceNoteLogs = useMemo(
-        () => sortedLogs.filter(log => isInvoiceNote(log) && !isPaymentOrBookingTerm(log)),
+        () => sortedLogs
+            .filter(log => isInvoiceNote(log) && !isPaymentOrBookingTerm(log))
+            .sort((a, b) => getInvoiceNoteRank(a) - getInvoiceNoteRank(b)),
         [sortedLogs]
     );
 
