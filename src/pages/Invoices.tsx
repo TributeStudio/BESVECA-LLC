@@ -1474,15 +1474,16 @@ Jessica`;
 
                                     {/* Footer */}
                                     <div className="mt-12 pt-8 border-t border-slate-100 text-center">
-                                        <div className="mb-6 text-[10px] text-slate-500 leading-relaxed font-medium">
-                                            <p className="font-bold uppercase tracking-widest text-slate-400 mb-2">Stay Amenities</p>
-                                            <p>The hot tub is included with the stay.</p>
-                                            <p>Pool heat is optional and not included. If requested, pool heat is billed at ${COMPANY_CONFIG.stay.poolHeatDailyRate} per day for the entire duration of the stay.</p>
+                                        <div className="mx-auto mb-6 max-w-lg text-[10px] font-medium leading-relaxed text-slate-500">
+                                            <p className="mb-2 font-bold uppercase tracking-widest text-slate-400">Hot Tub &amp; Pool Heat</p>
+                                            <p className="mx-auto max-w-[60ch]">
+                                                Hot tub heat is included with the stay. Pool heat is optional at ${COMPANY_CONFIG.stay.poolHeatDailyRate} per day and must be added for the full duration of the reservation.
+                                            </p>
                                         </div>
-                                        <div className="mb-8 text-[10px] text-slate-500 leading-relaxed font-medium">
-                                            <p className="font-bold uppercase tracking-widest text-slate-400 mb-2">Payment Instructions</p>
-                                            <p>Zelle: {COMPANY_CONFIG.payment.zelleRecipient}</p>
-                                            <p>{COMPANY_CONFIG.payment.zellePhone}</p>
+                                        <div className="mx-auto mb-8 max-w-md rounded-xl border border-slate-300 px-5 py-4 text-center text-[10px] font-medium leading-relaxed text-slate-600">
+                                            <p className="mb-2 font-bold uppercase tracking-widest text-slate-500">Payment Instructions</p>
+                                            <p>Zelle to {COMPANY_CONFIG.payment.zelleRecipient}</p>
+                                            <p className="font-bold text-slate-900">{COMPANY_CONFIG.payment.zellePhone}</p>
                                         </div>
                                         <p className="text-[10px] text-slate-300">
                                             {(() => {
@@ -1681,7 +1682,7 @@ Jessica`;
                                             <li>Guests are responsible for maintaining the property in good condition and are liable for damage beyond normal wear.</li>
                                             <li>No smoking is allowed inside the property.</li>
                                             <li>Check-in instructions are provided before arrival. Standard check-in is after 3:00 PM and check-out is before 11:00 AM.</li>
-                                            <li>The hot tub is included. Optional pool heat is billed at ${COMPANY_CONFIG.stay.poolHeatDailyRate} per day for the full duration of the stay when requested.</li>
+                                            <li>Hot tub heat is included. Optional pool heat is billed at ${COMPANY_CONFIG.stay.poolHeatDailyRate} per day for the full duration of the stay when requested.</li>
                                             <li>This agreement is governed by the laws of California.</li>
                                         </ul>
                                     </section>
