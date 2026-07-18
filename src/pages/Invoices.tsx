@@ -343,7 +343,7 @@ const Invoices: React.FC = () => {
 
                 // Accommodation
                 items.push({
-                    description: isNightly ? 'Cost of stay (regular rate)' : `Cost of stay (regular rate — ${nights} nights)`,
+                    description: isNightly ? 'Accommodations' : `Accommodations (${nights} nights)`,
                     quantity: displayQuantity,
                     rate: displayRate,
                     amount: accommodationTotal,
@@ -1258,7 +1258,7 @@ Jessica`;
                                                     const isNightly = Math.abs((log.cost || 0) * nights - accommodationTotal) < 1;
                                                     const displayQuantity = isNightly ? nights : 1;
                                                     const displayRate = isNightly ? (log.cost || accommodationTotal / nights) : accommodationTotal;
-                                                    const displayDesc = isNightly ? 'Cost of stay (regular rate)' : `Cost of stay (regular rate — ${nights} nights)`;
+                                                    const displayDesc = isNightly ? 'Accommodations' : `Accommodations (${nights} nights)`;
 
                                                     const rows = [
                                                         <tr key={log.id}>
