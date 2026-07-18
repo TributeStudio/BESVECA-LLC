@@ -103,9 +103,9 @@ const isPaymentOrBookingTerm = (log: LogItem) => {
 
 const getPaymentTermRank = (log: LogItem) => {
     const description = log.description.toLowerCase();
-    if (description.startsWith('send payment')) return 0;
-    if (description.includes('down payment')) return 1;
-    if (description.includes('remaining balance') || description.startsWith('remaining $')) return 2;
+    if (description.includes('down payment')) return 0;
+    if (description.includes('remaining balance') || description.startsWith('remaining $')) return 1;
+    if (description.startsWith('send payment')) return 2;
     if (description.startsWith('cancellation policy')) return 3;
     if (description.startsWith('lily must send')) return 4;
     if (description.startsWith('space remains')) return 5;
