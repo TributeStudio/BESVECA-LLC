@@ -1481,8 +1481,8 @@ Jessica`;
                                         </div>
                                         <div className="mb-8 text-[10px] text-slate-500 leading-relaxed font-medium">
                                             <p className="font-bold uppercase tracking-widest text-slate-400 mb-2">Payment Instructions</p>
-                                            <p>Please use the payment instructions provided directly by BESVECA, LLC.</p>
-                                            <p>For security, bank details are not printed in this app or invoice preview.</p>
+                                            <p>Zelle: {COMPANY_CONFIG.payment.zelleRecipient}</p>
+                                            <p>{COMPANY_CONFIG.payment.zellePhone}</p>
                                         </div>
                                         <p className="text-[10px] text-slate-300">
                                             {(() => {
