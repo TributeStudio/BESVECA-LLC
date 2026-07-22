@@ -1289,10 +1289,10 @@ Jessica`;
                                                 }
                                             `}</style>
                                             <div className="flex shrink-0 flex-col items-start">
-                                                <div className="h-12 w-6 overflow-hidden">
+                                                <div className="h-16 w-8 overflow-hidden">
                                                     <img src="/besveca-b-black.svg" alt="BESVECA" className="invoice-logo block h-full w-full object-contain object-left" />
                                                 </div>
-                                                <span className="mt-2 whitespace-nowrap text-[11px] font-bold tracking-tight">{COMPANY_CONFIG.name}</span>
+                                                <span className="mt-2 whitespace-nowrap text-lg font-bold tracking-tight">{COMPANY_CONFIG.name}</span>
                                             </div>
                                             <div className="text-[11px] font-normal leading-relaxed text-slate-900">
                                                 {COMPANY_CONFIG.address.map((line, i) => <p key={i}>{line}</p>)}

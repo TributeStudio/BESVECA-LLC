@@ -52,9 +52,10 @@
 
   html,
   body,
-  #root {
+  #root,
+  #root > div {
     margin: 0 !important;
-    min-height: 0 !important;
+    min-height: 100% !important;
     background: white !important;
   }
 
@@ -72,6 +73,7 @@
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
+    background: white !important;
   }
 
   .print-modal-shell,
@@ -103,6 +105,7 @@
   }
 
   #invoice-bill {
+    min-height: 100vh !important;
     background: white !important;
   }
 
