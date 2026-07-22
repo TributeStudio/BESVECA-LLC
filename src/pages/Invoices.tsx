@@ -98,9 +98,11 @@ const isPaymentOrBookingTerm = (log: LogItem) => {
     return description.startsWith('send payment') ||
         description.includes('down payment') ||
         description.includes('remaining balance') ||
+        description.startsWith('balance (') ||
         description.startsWith('cancellation policy') ||
         description.startsWith('lily must send') ||
         description.startsWith('as discussed') ||
+        description.startsWith('as agreed') ||
         description.startsWith('space remains');
 };
 
@@ -111,13 +113,25 @@ const isPaymentAmountTerm = (log: LogItem) => {
     const description = log.description.toLowerCase();
     return description.includes('down payment') ||
         description.includes('remaining balance') ||
+        description.startsWith('balance (') ||
         description.startsWith('remaining $');
+};
+
+const getPaymentScheduleDetails = (log: LogItem) => {
+    const amount = log.description.match(/\$[\d,]+(?:\.\d{2})?/)?.[0] || '';
+    const isDownPayment = log.description.toLowerCase().includes('down payment');
+    const statedLabel = log.description.match(/^([^:]+):/)?.[1];
+    return {
+        label: statedLabel || (isDownPayment ? 'Down payment' : 'Balance'),
+        due: isDownPayment ? 'Due now to confirm' : 'Due by check-in',
+        amount,
+    };
 };
 
 const getPaymentTermRank = (log: LogItem) => {
     const description = log.description.toLowerCase();
     if (description.includes('down payment')) return 0;
-    if (description.includes('remaining balance') || description.startsWith('remaining $')) return 1;
+    if (description.includes('remaining balance') || description.startsWith('remaining $') || description.startsWith('balance (')) return 1;
     if (description.startsWith('send payment')) return 2;
     if (description.startsWith('cancellation policy')) return 3;
     if (description.startsWith('lily must send')) return 4;
@@ -1487,19 +1501,26 @@ Jessica`;
                                     </div>
 
                                     {paymentTermLogs.length > 0 && (
-                                        <section className="mt-8 border-t border-slate-200 pt-5">
-                                            <h3 className="mb-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Payment &amp; Booking Terms</h3>
+                                        <section className="mt-8 border-t border-slate-300 pt-5">
+                                            <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-900">Payment Schedule</h3>
                                             {paymentAmountLogs.length > 0 && (
-                                                <div className="max-w-[62ch] text-[11px] leading-relaxed text-slate-700">
-                                                    {paymentAmountLogs.map((log, index) => (
-                                                        <p key={log.id} className={index === 0 ? 'font-bold text-slate-900' : 'mt-1 text-slate-600'}>
-                                                            {log.description}
-                                                        </p>
-                                                    ))}
+                                                <div className="divide-y divide-slate-100">
+                                                    {paymentAmountLogs.map(log => {
+                                                        const details = getPaymentScheduleDetails(log);
+                                                        return (
+                                                            <div key={log.id} className="grid grid-cols-[1fr_auto] items-center gap-8 py-3 first:pt-1">
+                                                                <div>
+                                                                    <p className="text-xs font-bold text-slate-900">{details.label}</p>
+                                                                    <p className="mt-0.5 text-[10px] font-normal text-slate-900">{details.due}</p>
+                                                                </div>
+                                                                <p className="text-sm font-bold tabular-nums text-slate-900">{details.amount}</p>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
                                             {otherBookingTermLogs.length > 0 && (
-                                                <div className="mt-4 max-w-[62ch] space-y-2 text-pretty text-[11px] leading-relaxed text-slate-600">
+                                                <div className="mt-5 max-w-[65ch] text-pretty text-[10px] font-normal leading-relaxed text-slate-900">
                                                     {otherBookingTermLogs.map(log => (
                                                         <p key={log.id}>{log.description}</p>
                                                     ))}
@@ -1508,29 +1529,25 @@ Jessica`;
                                         </section>
                                     )}
 
-                                    <section className="mx-auto mt-5 max-w-lg rounded-xl border border-slate-300 px-6 py-5 text-[10px] font-medium leading-relaxed text-slate-600">
-                                        <p className="mb-4 text-center font-bold uppercase tracking-widest text-slate-500">Payment Methods</p>
+                                    <section className="mt-6 border-t border-slate-200 pt-5 text-[10px] font-normal leading-relaxed text-slate-900">
+                                        <p className="mb-4 font-semibold uppercase tracking-widest text-slate-900">Payment Details</p>
                                         {bankConfig ? (
-                                            <div className="mx-auto max-w-sm">
-                                                <div className="mb-3">
-                                                    <p className="font-bold text-slate-900">Bank transfer</p>
+                                            <div className="grid grid-cols-[2fr_1fr] gap-12">
+                                                <div>
+                                                    <p className="mb-2 text-[11px] font-bold text-slate-900">Bank transfer</p>
+                                                    <dl className="grid grid-cols-[4.5rem_1fr] gap-x-3 gap-y-1.5 text-left">
+                                                        <dt className="font-normal text-slate-900">Bank</dt><dd className="font-semibold text-slate-900">{bankConfig.name}</dd>
+                                                        <dt className="font-normal text-slate-900">Routing</dt><dd className="font-semibold tabular-nums text-slate-900">{bankConfig.routing}</dd>
+                                                        <dt className="font-normal text-slate-900">Account</dt><dd className="font-semibold tabular-nums text-slate-900">{bankConfig.account}</dd>
+                                                        <dt className="font-normal text-slate-900">Beneficiary</dt><dd className="font-semibold text-slate-900">{bankConfig.beneficiary}</dd>
+                                                        <dt className="font-normal text-slate-900">For</dt><dd className="font-semibold text-slate-900">BESVECA, LLC</dd>
+                                                    </dl>
                                                 </div>
-                                                <dl className="grid grid-cols-[4.5rem_1fr] gap-x-3 gap-y-1.5 text-left">
-                                                    <dt className="text-slate-400">Bank</dt><dd className="font-bold text-slate-900">{bankConfig.name}</dd>
-                                                    <dt className="text-slate-400">Routing</dt><dd className="font-bold text-slate-900">{bankConfig.routing}</dd>
-                                                    <dt className="text-slate-400">Account</dt><dd className="font-bold text-slate-900">{bankConfig.account}</dd>
-                                                    <dt className="text-slate-400">Beneficiary</dt><dd className="font-bold text-slate-900">{bankConfig.beneficiary}</dd>
-                                                    <dt className="text-slate-400">For</dt><dd className="font-bold text-slate-900">BESVECA, LLC</dd>
-                                                </dl>
-                                                <div className="mt-5 flex items-center justify-between gap-4 border-t border-slate-200 pt-4">
-                                                    <div>
-                                                        <p className="font-bold text-slate-900">Zelle</p>
-                                                        <p className="text-[9px] text-slate-400">U.S. payments</p>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <p className="font-bold text-slate-900">BESVECA</p>
-                                                        <p className="tabular-nums text-slate-600">310-717-9946</p>
-                                                    </div>
+                                                <div>
+                                                    <p className="mb-2 text-[11px] font-bold text-slate-900">Zelle</p>
+                                                    <p className="font-semibold text-slate-900">BESVECA</p>
+                                                    <p className="mt-1 font-normal tabular-nums text-slate-900">310-717-9946</p>
+                                                    <p className="mt-1 text-[9px] font-normal text-slate-900">U.S. payments</p>
                                                 </div>
                                             </div>
                                         ) : (
@@ -1602,22 +1619,22 @@ Jessica`;
                                     )}
 
                                     {/* Footer */}
-                                    <div className="mt-12 pt-8 border-t border-slate-100 text-center">
-                                        <div className="mx-auto mb-6 max-w-lg text-[10px] font-medium leading-relaxed text-slate-500">
-                                            <p className="mb-2 font-bold uppercase tracking-widest text-slate-400">Hot Tub &amp; Pool Heat</p>
-                                            <p className="mx-auto max-w-[60ch]">
-                                                Hot tub heat is included with the stay. Pool heat is optional at ${COMPANY_CONFIG.stay.poolHeatDailyRate} per day and must be added for the full duration of the reservation.
+                                    <div className="mt-10 border-t border-slate-200 pt-5">
+                                        <div className="max-w-[70ch] text-pretty text-[9px] font-normal leading-relaxed text-slate-900">
+                                            <p className="mb-1.5 font-semibold uppercase tracking-widest text-slate-900">Stay Amenities</p>
+                                            <p>
+                                                Hot tub heat included. Pool heat is ${COMPANY_CONFIG.stay.poolHeatDailyRate} per day for the full stay.
                                             </p>
                                         </div>
                                         {cancellationPolicyLogs.length > 0 && (
-                                            <div className="mx-auto mb-6 max-w-[62ch] text-pretty text-[10px] font-medium leading-relaxed text-slate-500">
-                                                <p className="mb-2 font-bold uppercase tracking-widest text-slate-400">Cancellation Policy</p>
+                                            <div className="mt-4 max-w-[70ch] text-pretty border-t border-slate-100 pt-4 text-[9px] font-normal leading-relaxed text-slate-900">
+                                                <p className="mb-1.5 font-semibold uppercase tracking-widest text-slate-900">Cancellation Policy</p>
                                                 {cancellationPolicyLogs.map(log => (
-                                                    <p key={log.id}>{log.description.replace(/^Cancellation policy\s*[—-]\s*/i, '')}</p>
+                                                    <p key={log.id}>{log.description.replace(/^Cancellation policy\s*[—:-]\s*/i, '')}</p>
                                                 ))}
                                             </div>
                                         )}
-                                        <p className="text-[10px] text-slate-300">
+                                        <p className="mt-6 text-center text-[9px] text-slate-300">
                                             {(() => {
                                                 const proj = projects.find(p => p.name === selectedClientId || p.client === selectedClientId);
                                                 const prop = proj?.client;
