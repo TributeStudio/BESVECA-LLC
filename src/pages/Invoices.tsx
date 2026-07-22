@@ -1299,7 +1299,7 @@ Jessica`;
                                                 </div>
                                                 <span className="font-bold text-lg tracking-tight">{COMPANY_CONFIG.name}</span>
                                             </div>
-                                            <div className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                                            <div className="text-[11px] font-normal leading-relaxed text-slate-900">
                                                 {COMPANY_CONFIG.address.map((line, i) => <p key={i}>{line}</p>)}
                                                 <p>{COMPANY_CONFIG.contact.email}</p>
                                                 <p>{COMPANY_CONFIG.contact.phone}</p>
@@ -1307,17 +1307,17 @@ Jessica`;
                                         </div>
                                         <div className="text-right">
                                             <h2 className="text-xl font-bold text-slate-900 mb-1">INVOICE</h2>
-                                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest text-[#94a3b8]">
+                                            <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-900">
                                                 #{draftInvoiceNumber}
                                             </p>
-                                            <p className="text-[11px] text-slate-500 mt-2">{formatDate(new Date().toISOString().slice(0, 10))}</p>
+                                            <p className="mt-2 text-[11px] font-normal text-slate-900">{formatDate(new Date().toISOString().slice(0, 10))}</p>
                                         </div>
                                     </div>
 
                                     {/* Bill To & Context */}
                                     <div className="grid grid-cols-2 gap-8 mb-8 mt-2">
                                         <div>
-                                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Bill To</h3>
+                                            <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-900">Bill To</h3>
                                             {(() => {
                                                 const targetProject = selectedProjectId !== 'ALL'
                                                     ? projects.find(p => p.id === selectedProjectId)
@@ -1325,7 +1325,7 @@ Jessica`;
 
                                                 if (targetProject) {
                                                     return (
-                                                        <div className="text-sm font-medium text-slate-600 space-y-0.5">
+                                                        <div className="space-y-0.5 text-sm font-normal text-slate-900">
                                                             <p className="font-bold text-slate-900 text-base mb-1">{targetProject.name}</p>
                                                             {targetProject.email && <p>{targetProject.email}</p>}
                                                             {targetProject.phone && <p>{targetProject.phone}</p>}
@@ -1337,10 +1337,10 @@ Jessica`;
                                             })()}
                                         </div>
                                         <div className="text-right">
-                                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Terms</h3>
+                                            <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-900">Terms</h3>
                                             <p className="text-sm font-bold text-slate-900">{getDueDateLabel()}</p>
                                             {primaryStay && (
-                                                <div className="mt-3 text-[11px] leading-relaxed text-slate-500">
+                                                <div className="mt-3 text-[11px] font-normal leading-relaxed text-slate-900">
                                                     <p><span className="font-bold text-slate-900">Check-in:</span> {formatDate(primaryStay.checkIn)} after {COMPANY_CONFIG.stay.checkInTime}</p>
                                                     <p><span className="font-bold text-slate-900">Check-out:</span> {formatDate(primaryStay.checkOut)} before {COMPANY_CONFIG.stay.checkOutTime}</p>
                                                 </div>
@@ -1386,10 +1386,10 @@ Jessica`;
                                                         <tr key={log.id}>
                                                             <td className="py-2 pr-4 align-top">
                                                                 <span className="font-bold block text-slate-900">{displayDesc}</span>
-                                                                <span className="block text-[10px] text-slate-500 mt-0.5">{displayQuantity} {isNightly ? (displayQuantity !== 1 ? 'Nights' : 'Night') : 'Flat Rate'}</span>
+                                                                <span className="mt-0.5 block text-[10px] font-normal text-slate-900">{displayQuantity} {isNightly ? (displayQuantity !== 1 ? 'Nights' : 'Night') : 'Flat Rate'}</span>
                                                             </td>
-                                                            <td className="py-2 text-center align-top text-slate-500">{datesStr}</td>
-                                                            <td className="py-2 text-right align-top text-slate-500">${formatCurrency(displayRate)}</td>
+                                                            <td className="py-2 text-center align-top font-normal text-slate-900">{datesStr}</td>
+                                                            <td className="py-2 text-right align-top font-normal text-slate-900">${formatCurrency(displayRate)}</td>
                                                             <td className="py-2 text-right align-top font-bold text-slate-900">${formatCurrency(accommodationTotal)}</td>
                                                         </tr>
                                                     ];
@@ -1399,7 +1399,7 @@ Jessica`;
                                                             <tr key={`${log.id}-clean`}>
                                                                 <td className="py-2 pr-4 align-top"><span className="font-bold block text-slate-900">Cleaning Fee</span></td>
                                                                 <td className="py-2 text-center align-top text-slate-500"></td>
-                                                                <td className="py-2 text-right align-top text-slate-500">${formatCurrency(cleaningFee)}</td>
+                                                                <td className="py-2 text-right align-top font-normal text-slate-900">${formatCurrency(cleaningFee)}</td>
                                                                 <td className="py-2 text-right align-top font-bold text-slate-900">${formatCurrency(totalCleaning)}</td>
                                                             </tr>
                                                         );
@@ -1410,7 +1410,7 @@ Jessica`;
                                                             <tr key={`${log.id}-pool`}>
                                                                 <td className="py-2 pr-4 align-top"><span className="font-bold block text-slate-900">Pool Heat</span></td>
                                                                 <td className="py-2 text-center align-top text-slate-500"></td>
-                                                                <td className="py-2 text-right align-top text-slate-500">${formatCurrency(totalPoolHeat)}</td>
+                                                                <td className="py-2 text-right align-top font-normal text-slate-900">${formatCurrency(totalPoolHeat)}</td>
                                                                 <td className="py-2 text-right align-top font-bold text-slate-900">${formatCurrency(totalPoolHeat)}</td>
                                                             </tr>
                                                         );
@@ -1431,10 +1431,10 @@ Jessica`;
                                                         <td className="py-2 pr-4 align-top">
                                                             <span className="font-bold block text-slate-900">{description}</span>
                                                         </td>
-                                                        <td className="py-2 text-center align-top text-slate-500">
+                                                        <td className="py-2 text-center align-top font-normal text-slate-900">
                                                             {dates}
                                                         </td>
-                                                        <td className="py-2 text-right align-top text-slate-500">
+                                                        <td className="py-2 text-right align-top font-normal text-slate-900">
                                                             ${fee ? formatCurrency(fee) : '0.00'}
                                                         </td>
                                                         <td className="py-2 text-right align-top font-bold text-slate-900">
@@ -1464,7 +1464,7 @@ Jessica`;
                                     <div className="flex justify-end border-t border-slate-200 pt-4">
                                         <div className="w-48 text-[11px]">
                                             {!hasExplicitAdjustments && (
-                                                <div className="flex justify-between mb-1 text-slate-500">
+                                                <div className="mb-1 flex justify-between font-normal text-slate-900">
                                                     <span>Subtotal</span>
                                                     <span>${formatCurrency(totals.subtotal)}</span>
                                                 </div>
@@ -1476,7 +1476,7 @@ Jessica`;
                                                 </div>
                                             )}
                                             {!hasExplicitAdjustments && (
-                                                <div className="flex justify-between mb-2 text-slate-500">
+                                                <div className="mb-2 flex justify-between font-normal text-slate-900">
                                                     <span>PS TOT TAX</span>
                                                     <span>${formatCurrency(totals.tax)}</span>
                                                 </div>
@@ -1559,8 +1559,8 @@ Jessica`;
 
                                     {invoiceNoteLogs.length > 0 && (
                                         <section className="mt-5 border-t border-slate-200 pt-5">
-                                            <h3 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Additional Notes</h3>
-                                            <ul className="max-w-[62ch] space-y-2 text-pretty text-[11px] leading-relaxed text-slate-600">
+                                            <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-900">Additional Notes</h3>
+                                            <ul className="max-w-[62ch] space-y-2 text-pretty text-[11px] font-normal leading-relaxed text-slate-900">
                                                 {invoiceNoteLogs.map(log => (
                                                     <li key={log.id}>{log.description}</li>
                                                 ))}
@@ -1571,10 +1571,10 @@ Jessica`;
                                     {/* Payment Schedule Section */}
                                     {paymentStructure !== 'FULL' && (
                                         <div className="mt-8 border-t border-slate-200 pt-8">
-                                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Payment Schedule</h3>
+                                            <h3 className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-slate-900">Payment Schedule</h3>
                                             <table className="w-full text-sm">
                                                 <thead>
-                                                    <tr className="text-left text-[10px] font-bold text-slate-400 uppercase">
+                                                    <tr className="text-left text-[10px] font-semibold uppercase text-slate-900">
                                                         <th className="pb-2">Description</th>
                                                         <th className="pb-2">Due Date</th>
                                                         <th className="pb-2 text-right">Amount</th>
@@ -1585,12 +1585,12 @@ Jessica`;
                                                         <>
                                                             <tr>
                                                                 <td className="py-2 font-medium text-slate-900">Deposit (50%)</td>
-                                                                <td className="py-2 text-slate-500">{depositDate ? formatDate(depositDate) : 'Upon Receipt'}</td>
+                                                                <td className="py-2 font-normal text-slate-900">{depositDate ? formatDate(depositDate) : 'Upon Receipt'}</td>
                                                                 <td className="py-2 text-right font-bold text-slate-900">${(remainingInvoiceTotal * 0.5).toFixed(2)}</td>
                                                             </tr>
                                                             <tr>
                                                                 <td className="py-2 font-medium text-slate-900">Balance (50%)</td>
-                                                                <td className="py-2 text-slate-500">{balanceDate ? formatDate(balanceDate) : 'Upon Arrival'}</td>
+                                                                <td className="py-2 font-normal text-slate-900">{balanceDate ? formatDate(balanceDate) : 'Upon Arrival'}</td>
                                                                 <td className="py-2 text-right font-bold text-slate-900">${(remainingInvoiceTotal - (remainingInvoiceTotal * 0.5)).toFixed(2)}</td>
                                                             </tr>
                                                         </>
@@ -1598,17 +1598,17 @@ Jessica`;
                                                         <>
                                                             <tr>
                                                                 <td className="py-2 font-medium text-slate-900">Payment 1 (1/3)</td>
-                                                                <td className="py-2 text-slate-500">{depositDate ? formatDate(depositDate) : 'Upon Receipt'}</td>
+                                                                <td className="py-2 font-normal text-slate-900">{depositDate ? formatDate(depositDate) : 'Upon Receipt'}</td>
                                                                 <td className="py-2 text-right font-bold text-slate-900">${formatCurrency(longStayInstallments[0])}</td>
                                                             </tr>
                                                             <tr>
                                                                 <td className="py-2 font-medium text-slate-900">Payment 2 (1/3)</td>
-                                                                <td className="py-2 text-slate-500">{secondPaymentDate ? formatDate(secondPaymentDate) : 'Custom Date'}</td>
+                                                                <td className="py-2 font-normal text-slate-900">{secondPaymentDate ? formatDate(secondPaymentDate) : 'Custom Date'}</td>
                                                                 <td className="py-2 text-right font-bold text-slate-900">${formatCurrency(longStayInstallments[1])}</td>
                                                             </tr>
                                                             <tr>
                                                                 <td className="py-2 font-medium text-slate-900">Payment 3 (1/3)</td>
-                                                                <td className="py-2 text-slate-500">{balanceDate ? formatDate(balanceDate) : 'On or before check-in'}</td>
+                                                                <td className="py-2 font-normal text-slate-900">{balanceDate ? formatDate(balanceDate) : 'On or before check-in'}</td>
                                                                 <td className="py-2 text-right font-bold text-slate-900">${formatCurrency(longStayInstallments[2])}</td>
                                                             </tr>
                                                         </>
@@ -1630,11 +1630,11 @@ Jessica`;
                                             <div className="mt-4 max-w-[70ch] text-pretty border-t border-slate-100 pt-4 text-[9px] font-normal leading-relaxed text-slate-900">
                                                 <p className="mb-1.5 font-semibold uppercase tracking-widest text-slate-900">Cancellation Policy</p>
                                                 {cancellationPolicyLogs.map(log => (
-                                                    <p key={log.id}>{log.description.replace(/^Cancellation policy\s*[—:-]\s*/i, '')}</p>
+                                                    <p key={log.id} className="max-w-[58ch] text-balance">{log.description.replace(/^Cancellation policy\s*[—:-]\s*/i, '')}</p>
                                                 ))}
                                             </div>
                                         )}
-                                        <p className="mt-6 text-center text-[9px] text-slate-300">
+                                        <p className="mt-6 text-center text-[9px] font-normal text-slate-900">
                                             {(() => {
                                                 const proj = projects.find(p => p.name === selectedClientId || p.client === selectedClientId);
                                                 const prop = proj?.client;
