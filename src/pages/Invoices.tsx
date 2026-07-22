@@ -1475,7 +1475,7 @@ Jessica`;
                                                     <span>${formatCurrency(totals.tax)}</span>
                                                 </div>
                                             )}
-                                            <div className={`flex justify-between font-bold text-sm text-slate-900 border-t border-slate-200 pt-2 ${Number(paymentsReceived) > 0 ? 'mb-2' : ''}`}>
+                                            <div className={`mt-1 flex justify-between text-sm font-bold text-slate-900 ${Number(paymentsReceived) > 0 ? 'mb-2' : ''}`}>
                                                 <span>{hasExplicitAdjustments ? 'Final Total' : 'Total'}</span>
                                                 <span>${formatCurrency(totals.total)}</span>
                                             </div>
@@ -1614,19 +1614,20 @@ Jessica`;
                                     {/* Footer */}
                                     <div className="mt-10 border-t border-slate-200 pt-5">
                                         <div className="max-w-[70ch] text-pretty text-[9px] font-normal leading-relaxed text-slate-900">
-                                            <p className="mb-1.5 font-semibold uppercase tracking-widest text-slate-900">Stay Amenities</p>
-                                            <p>
-                                                Hot tub heat included. Pool heat is ${COMPANY_CONFIG.stay.poolHeatDailyRate} per day for the full stay.
+                                            <p className="text-balance">
+                                                <span className="font-semibold">Stay amenities:</span> Hot tub heat included. Pool heat is ${COMPANY_CONFIG.stay.poolHeatDailyRate} per day for the full stay.
+                                                {cancellationPolicyLogs.length > 0 && (
+                                                    <>
+                                                        {' '}<span className="font-semibold">Cancellation policy:</span>{' '}
+                                                        {cancellationPolicyLogs.map(log => (
+                                                            <React.Fragment key={log.id}>
+                                                                {log.description.replace(/^Cancellation policy\s*[—:-]\s*/i, '')}
+                                                            </React.Fragment>
+                                                        ))}
+                                                    </>
+                                                )}
                                             </p>
                                         </div>
-                                        {cancellationPolicyLogs.length > 0 && (
-                                            <div className="mt-4 max-w-[70ch] text-pretty border-t border-slate-100 pt-4 text-[9px] font-normal leading-relaxed text-slate-900">
-                                                <p className="mb-1.5 font-semibold uppercase tracking-widest text-slate-900">Cancellation Policy</p>
-                                                {cancellationPolicyLogs.map(log => (
-                                                    <p key={log.id} className="max-w-[58ch] text-balance">{log.description.replace(/^Cancellation policy\s*[—:-]\s*/i, '')}</p>
-                                                ))}
-                                            </div>
-                                        )}
                                         <p className="mt-6 text-center text-[9px] font-normal text-slate-900">
                                             {(() => {
                                                 const proj = projects.find(p => p.name === selectedClientId || p.client === selectedClientId);
