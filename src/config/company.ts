@@ -11,10 +11,6 @@ export const COMPANY_CONFIG = {
         email: 'jessica@tribute.studio',
         phone: '+1 (310) 717-9946'
     },
-    payment: {
-        zelleRecipient: 'BESVECA',
-        zellePhone: '310-717-9946',
-    },
     stay: {
         checkInTime: '3:00 PM',
         checkOutTime: '11:00 AM',

@@ -14,6 +14,8 @@ import {
     Trash
 } from '@phosphor-icons/react';
 import { COMPANY_CONFIG } from '../config/company';
+import { fetchCompanyBankConfig } from '../services/companyBank';
+import type { CompanyBankConfig } from '../services/companyBank';
 
 type DateFilterType = 'ALL' | 'MONTH' | 'RANGE';
 type PaymentStructure = 'FULL' | 'DEPOSIT_50' | 'THIRDS_LONG_STAY';
@@ -145,6 +147,25 @@ const Invoices: React.FC = () => {
     const [paymentsReceivedNote, setPaymentsReceivedNote] = useState('');
 
     const [showPreview, setShowPreview] = useState(false);
+    const [bankConfig, setBankConfig] = useState<CompanyBankConfig | null>(null);
+    const [bankConfigStatus, setBankConfigStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+
+    React.useEffect(() => {
+        if (!showPreview || bankConfig || bankConfigStatus === 'loading') return;
+        let active = true;
+        setBankConfigStatus('loading');
+        fetchCompanyBankConfig()
+            .then((config) => {
+                if (!active) return;
+                setBankConfig(config);
+                setBankConfigStatus('ready');
+            })
+            .catch((error) => {
+                console.error('Invoice banking information did not load.', error);
+                if (active) setBankConfigStatus('error');
+            });
+        return () => { active = false; };
+    }, [bankConfig, bankConfigStatus, showPreview]);
     const [showAgreementPreview, setShowAgreementPreview] = useState(false);
     const [emailLoading, setEmailLoading] = useState(false);
     const [emailDraft, setEmailDraft] = useState<string | null>(null);
@@ -1444,8 +1465,21 @@ Jessica`;
 
                                     <section className="mx-auto mt-5 max-w-md rounded-xl border border-slate-300 px-5 py-4 text-center text-[10px] font-medium leading-relaxed text-slate-600">
                                         <p className="mb-2 font-bold uppercase tracking-widest text-slate-500">Payment Instructions</p>
-                                        <p>Zelle to {COMPANY_CONFIG.payment.zelleRecipient}</p>
-                                        <p className="font-bold text-slate-900">{COMPANY_CONFIG.payment.zellePhone}</p>
+                                        {bankConfig ? (
+                                            <>
+                                                <p className="mb-3 font-bold text-slate-900">ACH / Wire Transfer</p>
+                                                <dl className="mx-auto grid max-w-xs grid-cols-[4.5rem_1fr] gap-x-3 gap-y-1.5 text-left">
+                                                    <dt className="text-slate-400">Bank</dt><dd className="font-bold text-slate-900">{bankConfig.name}</dd>
+                                                    <dt className="text-slate-400">Routing</dt><dd className="font-bold text-slate-900">{bankConfig.routing}</dd>
+                                                    <dt className="text-slate-400">Account</dt><dd className="font-bold text-slate-900">{bankConfig.account}</dd>
+                                                    <dt className="text-slate-400">For</dt><dd className="font-bold text-slate-900">{bankConfig.beneficiary}</dd>
+                                                </dl>
+                                            </>
+                                        ) : (
+                                            <p className="font-bold text-amber-700">
+                                                {bankConfigStatus === 'error' ? 'Banking details did not load. Refresh before sending.' : 'Loading secure banking details…'}
+                                            </p>
+                                        )}
                                     </section>
 
                                     {invoiceNoteLogs.length > 0 && (
