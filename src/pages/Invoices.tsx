@@ -1539,8 +1539,7 @@ Jessica`;
                                                         <dt className="font-normal text-slate-900">Bank</dt><dd className="font-semibold text-slate-900">{bankConfig.name}</dd>
                                                         <dt className="font-normal text-slate-900">Routing</dt><dd className="font-semibold tabular-nums text-slate-900">{bankConfig.routing}</dd>
                                                         <dt className="font-normal text-slate-900">Account</dt><dd className="font-semibold tabular-nums text-slate-900">{bankConfig.account}</dd>
-                                                        <dt className="font-normal text-slate-900">Beneficiary</dt><dd className="font-semibold text-slate-900">{bankConfig.beneficiary}</dd>
-                                                        <dt className="font-normal text-slate-900">For</dt><dd className="font-semibold text-slate-900">BESVECA, LLC</dd>
+                                                        <dt className="font-normal text-slate-900">Beneficiary</dt><dd className="font-semibold text-slate-900">BESVECA, LLC</dd>
                                                     </dl>
                                                 </div>
                                                 <div>
