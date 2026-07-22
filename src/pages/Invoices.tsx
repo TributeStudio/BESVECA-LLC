@@ -1268,12 +1268,6 @@ Jessica`;
                                 </div>
                             </div>
 
-                            {selectedClientId === 'Lily Papas' && (
-                                <div className="border-b border-amber-200 bg-amber-50 px-6 py-3 text-center text-xs font-semibold text-amber-900 print:hidden">
-                                    Confirm the international wire instructions with Jessica before sending this invoice.
-                                </div>
-                            )}
-
                             <div className="flex-1 overflow-y-auto p-12 bg-white printable-area font-sans text-slate-900 print:overflow-visible print:h-auto print:p-0">
                                 <div id="invoice-bill" className="max-w-3xl mx-auto print:max-w-none">
                                     {/* Header */}
