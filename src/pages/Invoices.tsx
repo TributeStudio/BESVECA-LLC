@@ -151,7 +151,7 @@ const Invoices: React.FC = () => {
     const [bankConfigStatus, setBankConfigStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
 
     React.useEffect(() => {
-        if (!showPreview || bankConfig || bankConfigStatus === 'loading') return;
+        if (!showPreview || bankConfig) return;
         let active = true;
         setBankConfigStatus('loading');
         fetchCompanyBankConfig()
@@ -165,7 +165,7 @@ const Invoices: React.FC = () => {
                 if (active) setBankConfigStatus('error');
             });
         return () => { active = false; };
-    }, [bankConfig, bankConfigStatus, showPreview]);
+    }, [bankConfig, showPreview]);
     const [showAgreementPreview, setShowAgreementPreview] = useState(false);
     const [emailLoading, setEmailLoading] = useState(false);
     const [emailDraft, setEmailDraft] = useState<string | null>(null);
