@@ -1281,8 +1281,9 @@ Jessica`;
                                                         width: 100%;
                                                         max-width: none;
                                                         margin: 0;
-                                                        padding: 2cm; /* uniform margin */
+                                                        padding: 1.35cm 1.5cm;
                                                         box-sizing: border-box;
+                                                        background: white !important;
                                                     }
                                                     .print-hidden { display: none !important; }
                                                 }
@@ -1441,7 +1442,7 @@ Jessica`;
                                                     return (
                                                         <React.Fragment key={log.id}>
                                                             {itemRow}
-                                                            <tr className="border-y border-slate-300 bg-slate-50 font-bold text-slate-900">
+                                                            <tr className="border-y border-slate-300 font-bold text-slate-900">
                                                                 <td colSpan={3} className="py-2 text-right uppercase tracking-wide">Subtotal before discounts</td>
                                                                 <td className="py-2 text-right">${formatCurrency(preDiscountSubtotal)}</td>
                                                             </tr>
@@ -1612,7 +1613,7 @@ Jessica`;
                                     )}
 
                                     {/* Footer */}
-                                    <div className="mt-10 border-t border-slate-200 pt-5">
+                                    <div className="invoice-footer mt-8 grid grid-cols-[3fr_1fr] items-end gap-8 border-t border-slate-200 pt-4">
                                         <div className="max-w-[70ch] text-pretty text-[9px] font-normal leading-relaxed text-slate-900">
                                             <p className="text-balance">
                                                 <span className="font-semibold">Stay amenities:</span> Hot tub heat included. Pool heat is ${COMPANY_CONFIG.stay.poolHeatDailyRate} per day for the full stay.
@@ -1628,7 +1629,7 @@ Jessica`;
                                                 )}
                                             </p>
                                         </div>
-                                        <p className="mt-6 text-center text-[9px] font-normal text-slate-900">
+                                        <p className="text-right text-[9px] font-normal leading-relaxed text-slate-900">
                                             {(() => {
                                                 const proj = projects.find(p => p.name === selectedClientId || p.client === selectedClientId);
                                                 const prop = proj?.client;

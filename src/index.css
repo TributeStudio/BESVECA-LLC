@@ -55,7 +55,7 @@
   #root {
     margin: 0 !important;
     min-height: 0 !important;
-    background: transparent !important;
+    background: white !important;
   }
 
   body:has(.print-modal-shell) aside,
@@ -87,7 +87,7 @@
     padding: 0 !important;
     overflow: visible !important;
     border-radius: 0 !important;
-    background: transparent !important;
+    background: white !important;
     box-shadow: none !important;
     backdrop-filter: none !important;
   }
@@ -99,7 +99,16 @@
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
-    background: transparent !important;
+    background: white !important;
+  }
+
+  #invoice-bill {
+    background: white !important;
+  }
+
+  .invoice-footer {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .invoice-logo {
