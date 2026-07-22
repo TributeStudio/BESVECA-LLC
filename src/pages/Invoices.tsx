@@ -1463,18 +1463,31 @@ Jessica`;
                                         </section>
                                     )}
 
-                                    <section className="mx-auto mt-5 max-w-md rounded-xl border border-slate-300 px-5 py-4 text-center text-[10px] font-medium leading-relaxed text-slate-600">
-                                        <p className="mb-2 font-bold uppercase tracking-widest text-slate-500">Payment Instructions</p>
+                                    <section className="mx-auto mt-5 max-w-lg rounded-xl border border-slate-300 px-6 py-5 text-[10px] font-medium leading-relaxed text-slate-600">
+                                        <p className="mb-4 text-center font-bold uppercase tracking-widest text-slate-500">Payment Methods</p>
                                         {bankConfig ? (
-                                            <>
-                                                <p className="mb-3 font-bold text-slate-900">ACH / Wire Transfer</p>
-                                                <dl className="mx-auto grid max-w-xs grid-cols-[4.5rem_1fr] gap-x-3 gap-y-1.5 text-left">
+                                            <div className="mx-auto max-w-sm">
+                                                <div className="mb-3 flex items-baseline justify-between gap-4">
+                                                    <p className="font-bold text-slate-900">Bank transfer</p>
+                                                    <p className="text-[9px] uppercase tracking-wider text-slate-400">International, ACH or wire</p>
+                                                </div>
+                                                <dl className="grid grid-cols-[4.5rem_1fr] gap-x-3 gap-y-1.5 text-left">
                                                     <dt className="text-slate-400">Bank</dt><dd className="font-bold text-slate-900">{bankConfig.name}</dd>
                                                     <dt className="text-slate-400">Routing</dt><dd className="font-bold text-slate-900">{bankConfig.routing}</dd>
                                                     <dt className="text-slate-400">Account</dt><dd className="font-bold text-slate-900">{bankConfig.account}</dd>
                                                     <dt className="text-slate-400">For</dt><dd className="font-bold text-slate-900">{bankConfig.beneficiary}</dd>
                                                 </dl>
-                                            </>
+                                                <div className="mt-5 flex items-center justify-between gap-4 border-t border-slate-200 pt-4">
+                                                    <div>
+                                                        <p className="font-bold text-slate-900">Zelle</p>
+                                                        <p className="text-[9px] text-slate-400">U.S. payments</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="font-bold text-slate-900">BESVECA</p>
+                                                        <p className="tabular-nums text-slate-600">310-717-9946</p>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         ) : (
                                             <p className="font-bold text-amber-700">
                                                 {bankConfigStatus === 'error' ? 'Banking details did not load. Refresh before sending.' : 'Loading secure banking details…'}
