@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { signCustomToken as signServiceAccountToken } from './sa-token.mjs';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { deleteUser, getAuth, signInWithCustomToken } from 'firebase/auth';
 import {
@@ -167,48 +168,7 @@ const logIdFor = (projectId, data) => `stay-${projectId}-${data.checkIn}-${data.
 const invoiceIdFor = (data) => `invoice-${slugify(data.invoiceNumber)}`;
 
 const projectId = appEnv.VITE_FIREBASE_PROJECT_ID;
-const serviceAccount =
-  process.env.FIREBASE_SMOKE_SERVICE_ACCOUNT ||
-  `firebase-adminsdk-fbsvc@${projectId}.iam.gserviceaccount.com`;
-
-const getAccessToken = () =>
-  execFileSync('gcloud', ['auth', 'print-access-token', '--quiet'], { encoding: 'utf8' }).trim();
-
-const signCustomToken = async (uid) => {
-  const accessToken = getAccessToken();
-  const iat = Math.floor(Date.now() / 1000);
-  const payload = {
-    iss: serviceAccount,
-    sub: serviceAccount,
-    aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',
-    iat,
-    exp: iat + 3600,
-    uid,
-    claims: {
-      besvecaAdmin: true,
-    },
-  };
-
-  const response = await fetch(
-    `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${encodeURIComponent(serviceAccount)}:signJwt`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'x-goog-user-project': projectId,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ payload: JSON.stringify(payload) }),
-    }
-  );
-  const json = await response.json();
-
-  if (!response.ok) {
-    throw new Error(json.error?.message || `signJwt failed with ${response.status}`);
-  }
-
-  return json.signedJwt;
-};
+const signCustomToken = (uid) => signServiceAccountToken({ projectId, uid });
 
 requireFile(invoicePdfPath);
 requireFile(agreementPdfPath);
