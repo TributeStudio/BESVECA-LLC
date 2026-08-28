@@ -1,9 +1,15 @@
+import { auth } from './firebase';
+
 type GeminiAction = 'processStatement' | 'processFile' | 'draftInvoiceEmail';
 
 const callGemini = async <T,>(action: GeminiAction, payload: Record<string, unknown>): Promise<T> => {
+    const user = auth?.currentUser;
+    if (!user) throw new Error('Sign in before using AI features.');
+
+    const token = await user.getIdToken(true);
     const response = await fetch('/api/gemini', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action, ...payload }),
     });
 

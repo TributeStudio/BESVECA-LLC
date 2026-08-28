@@ -2,6 +2,42 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const API_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 
+// Same auth gate as company-bank.js: verified Firebase ID token + owner allowlist.
+const firebaseApiKey = process.env.FIREBASE_WEB_API_KEY || process.env.VITE_FIREBASE_API_KEY;
+const allowedEmails = (
+    process.env.COMPANY_BANK_ALLOWED_EMAILS ||
+    process.env.COMPANY_BANK_ALLOWED_EMAIL ||
+    ''
+)
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+const allowedUids = (
+    process.env.COMPANY_BANK_ALLOWED_UIDS ||
+    process.env.FIRESTORE_EXPORT_USER_ID ||
+    ''
+)
+    .split(',')
+    .map((uid) => uid.trim())
+    .filter(Boolean);
+
+const verifyFirebaseToken = async (idToken) => {
+    if (!firebaseApiKey) throw new Error('Firebase API key is not configured.');
+
+    const lookup = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseApiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+    });
+    const body = await lookup.json();
+    if (!lookup.ok || !Array.isArray(body.users) || body.users.length === 0) return false;
+
+    const user = body.users[0];
+    const email = (user?.email || '').toLowerCase();
+    const uid = user?.localId || '';
+    return Boolean((uid && allowedUids.includes(uid)) || (email && allowedEmails.includes(email)));
+};
+
 const getModel = () => {
     if (!API_KEY) {
         throw new Error('Server Gemini key is not configured.');
@@ -78,6 +114,12 @@ export default async function handler(request, response) {
     }
 
     try {
+        const authHeader = request.headers.authorization || '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
+        if (!token || !(await verifyFirebaseToken(token))) {
+            return response.status(401).json({ error: 'Authorized sign-in required.' });
+        }
+
         const { action, content, fileBase64, mimeType, clientName, amount, projects } = request.body || {};
 
         if (action === 'processStatement') {
