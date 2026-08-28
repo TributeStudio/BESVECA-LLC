@@ -31,6 +31,8 @@ const formatDate = (dateStr: string) => {
     return dateStr;
 };
 
+const STANDARD_CANCELLATION_POLICY = 'Payments are non-refundable. If guest travel plans change, payments may be applied toward a future stay within 12 months of the original check-in date, subject to written approval and availability.';
+
 const LONG_STAY_AGREEMENT_NIGHTS = 29;
 const MS_PER_DAY = 86400000;
 
@@ -147,6 +149,250 @@ const getInvoiceNoteRank = (log: LogItem) => {
     return 3;
 };
 
+const savedDueLabel = (invoice: Invoice) => {
+    if (invoice.terms === 'NET_15') return 'Net 15';
+    if (invoice.terms === 'NET_30') return 'Net 30';
+    if (invoice.terms === 'CUSTOM') return `Due by ${formatDate(invoice.dueDate)}`;
+    return 'Due Upon Receipt';
+};
+
+const SavedInvoiceModal = ({ invoice, guest, bankConfig, bankConfigStatus, onClose }: {
+    invoice: Invoice;
+    guest?: { name: string; email?: string; phone?: string; address?: string; client?: string };
+    bankConfig: CompanyBankConfig | null;
+    bankConfigStatus: 'idle' | 'loading' | 'ready' | 'error';
+    onClose: () => void;
+}) => {
+    const money = (amount: number) => amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const paidAmount = (invoice.payments || []).reduce((sum, payment) => sum + payment.amount, 0);
+    const stayItem = invoice.items.find(item => item.type === 'STAY' && item.dates);
+    const stayDates = stayItem?.dates ? stayItem.dates.split(' to ') : null;
+    const cancellationNote = (invoice.notes || []).find(note => /cancellation/i.test(note));
+    const thankYou = guest?.client === 'Skyhouse' ? 'Thank you for staying at the Sky House' : 'Thank you for staying at the BESVECA House';
+
+    return (
+        <div className="print-modal-shell fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm">
+            <div className="print-modal-card bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between print:hidden">
+                    <h2 className="font-bold text-xl">Invoice {invoice.invoiceNumber}</h2>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => {
+                                const originalTitle = document.title;
+                                document.title = `BESVECA, LLC Invoice ${invoice.clientId}`;
+                                window.print();
+                                setTimeout(() => document.title = originalTitle, 100);
+                            }}
+                            className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors"
+                        >
+                            Print PDF
+                        </button>
+                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                            <X size={20} weight="bold" />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-12 bg-white printable-area font-sans text-slate-900 print:overflow-visible print:h-auto print:p-0">
+                    <div id="invoice-bill" className="max-w-3xl mx-auto print:max-w-none">
+                        <style>{`
+                            @media print {
+                                @page { margin: 0; size: auto; }
+                                body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                                #invoice-bill {
+                                    width: 100%;
+                                    max-width: none;
+                                    margin: 0;
+                                    padding: 1.35cm 1.5cm;
+                                    box-sizing: border-box;
+                                    background: white !important;
+                                }
+                                .print-hidden { display: none !important; }
+                            }
+                        `}</style>
+                        <div className="flex justify-between items-start mb-8 border-b border-slate-200 pb-8">
+                            <div className="flex items-center gap-7">
+                                <div className="flex shrink-0 flex-col items-start">
+                                    <div className="h-16 w-8 overflow-hidden">
+                                        <img src="/besveca-b-black.svg" alt="BESVECA" className="invoice-logo block h-full w-full object-contain object-left" />
+                                    </div>
+                                    <span className="mt-2 whitespace-nowrap text-lg font-bold tracking-tight">{COMPANY_CONFIG.name}</span>
+                                </div>
+                                <div className="text-[11px] font-normal leading-relaxed text-slate-900">
+                                    {COMPANY_CONFIG.address.map((line, i) => <p key={i}>{line}</p>)}
+                                    <p>{COMPANY_CONFIG.contact.email}</p>
+                                    <p>{COMPANY_CONFIG.contact.phone}</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <h2 className="text-xl font-bold text-slate-900 mb-1">INVOICE</h2>
+                                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-900">#{invoice.invoiceNumber}</p>
+                                <p className="mt-2 text-[11px] font-normal text-slate-900">{formatDate(invoice.date)}</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-8 mb-8 mt-2">
+                            <div>
+                                <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-900">Bill To</h3>
+                                <div className="space-y-0.5 text-sm font-normal text-slate-900">
+                                    <p className="font-bold text-slate-900 text-base mb-1">{guest?.name || invoice.clientId}</p>
+                                    {guest?.email && <p>{guest.email}</p>}
+                                    {guest?.phone && <p>{guest.phone}</p>}
+                                    {guest?.address && <p className="whitespace-pre-line leading-snug">{guest.address}</p>}
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-900">Terms</h3>
+                                <p className="text-sm font-bold text-slate-900">{savedDueLabel(invoice)}</p>
+                                {stayDates && stayDates.length === 2 && (
+                                    <div className="mt-3 text-[11px] font-normal leading-relaxed text-slate-900">
+                                        <p><span className="font-bold text-slate-900">Check-in:</span> {stayDates[0]}</p>
+                                        <p><span className="font-bold text-slate-900">Check-out:</span> {stayDates[1]}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <table className="w-full mb-8 border-collapse">
+                            <thead>
+                                <tr className="border-b border-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-900">
+                                    <th className="py-2 text-left">Description</th>
+                                    <th className="py-2 text-center w-40">Dates / Duration</th>
+                                    <th className="py-2 text-right w-24">Rate</th>
+                                    <th className="py-2 text-right w-24">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-[11px]">
+                                {invoice.items.map((item, index) => (
+                                    <tr key={index}>
+                                        <td className="py-2 pr-4 align-top">
+                                            <span className="font-bold block text-slate-900">{item.description}</span>
+                                            {item.quantity > 1 && (
+                                                <span className="mt-0.5 block text-[10px] font-normal text-slate-900">Qty {item.quantity}</span>
+                                            )}
+                                        </td>
+                                        <td className="py-2 text-center align-top font-normal text-slate-900">{item.dates || ''}</td>
+                                        <td className="py-2 text-right align-top font-normal text-slate-900">${money(item.rate)}</td>
+                                        <td className="py-2 text-right align-top font-bold text-slate-900">${money(item.amount)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+
+                        <div className="flex justify-end border-t border-slate-200 pt-4">
+                            <div className="w-48 text-[11px]">
+                                <div className="mb-1 flex justify-between font-normal text-slate-900">
+                                    <span>Subtotal</span>
+                                    <span>${money(invoice.subtotal)}</span>
+                                </div>
+                                {(invoice.discount || 0) > 0 && (
+                                    <div className="flex justify-between mb-1 text-emerald-600 font-medium">
+                                        <span>Discount</span>
+                                        <span>-${money(invoice.discount || 0)}</span>
+                                    </div>
+                                )}
+                                <div className="mb-2 flex justify-between font-normal text-slate-900">
+                                    <span>PS TOT TAX</span>
+                                    <span>${money(invoice.tax)}</span>
+                                </div>
+                                <div className={`mt-1 flex justify-between text-sm font-bold text-slate-900 ${paidAmount > 0 ? 'mb-2' : ''}`}>
+                                    <span>Total</span>
+                                    <span>${money(invoice.total)}</span>
+                                </div>
+                                {paidAmount > 0 && (
+                                    <>
+                                        <div className="flex justify-between mb-2 text-emerald-600 font-medium">
+                                            <span>Payment Received</span>
+                                            <span>-${money(paidAmount)}</span>
+                                        </div>
+                                        <div className="flex justify-between font-bold text-base text-slate-900 border-t-2 border-slate-900 pt-2">
+                                            <span>Balance Due</span>
+                                            <span>${money(invoice.total - paidAmount)}</span>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        <section className="mt-6 border-t border-slate-200 pt-5 text-[10px] font-normal leading-relaxed text-slate-900">
+                            <p className="mb-4 font-semibold uppercase tracking-widest text-slate-900">Payment Details</p>
+                            {bankConfig ? (
+                                <div className="grid grid-cols-[2fr_1fr] gap-12">
+                                    <div>
+                                        <p className="mb-2 text-[11px] font-bold text-slate-900">Bank transfer</p>
+                                        <dl className="grid grid-cols-[4.5rem_1fr] gap-x-3 gap-y-1.5 text-left">
+                                            <dt className="font-normal text-slate-900">Bank</dt><dd className="font-semibold text-slate-900">{bankConfig.name}</dd>
+                                            <dt className="font-normal text-slate-900">Routing</dt><dd className="font-semibold tabular-nums text-slate-900">{bankConfig.routing}</dd>
+                                            <dt className="font-normal text-slate-900">Account</dt><dd className="font-semibold tabular-nums text-slate-900">{bankConfig.account}</dd>
+                                            <dt className="font-normal text-slate-900">Beneficiary</dt><dd className="font-semibold text-slate-900">BESVECA, LLC</dd>
+                                        </dl>
+                                    </div>
+                                    <div>
+                                        <p className="mb-2 text-[11px] font-bold text-slate-900">Zelle</p>
+                                        <p className="font-semibold text-slate-900">BESVECA</p>
+                                        <p className="mt-1 font-normal tabular-nums text-slate-900">310-717-9946</p>
+                                        <p className="mt-1 text-[9px] font-normal text-slate-900">U.S. payments</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="font-bold text-amber-700">
+                                    {bankConfigStatus === 'error' ? 'Banking details did not load. Refresh before sending.' : 'Loading secure banking details…'}
+                                </p>
+                            )}
+                        </section>
+
+                        {(invoice.paymentSchedule || []).length > 0 && (
+                            <div className="mt-8 border-t border-slate-200 pt-8">
+                                <h3 className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-slate-900">Payment Schedule</h3>
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="text-left text-[10px] font-semibold uppercase text-slate-900">
+                                            <th className="pb-2">Description</th>
+                                            <th className="pb-2">Due Date</th>
+                                            <th className="pb-2 text-right">Amount</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {(invoice.paymentSchedule || []).map((entry) => (
+                                            <tr key={entry.id}>
+                                                <td className="py-2 font-medium text-slate-900">{entry.label}</td>
+                                                <td className="py-2 font-normal text-slate-900">{formatDate(entry.date)}</td>
+                                                <td className="py-2 text-right font-bold text-slate-900">${money(entry.amount)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {(invoice.notes || []).length > 0 && (
+                            <section className="mt-5 border-t border-slate-200 pt-5">
+                                <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-900">Additional Notes</h3>
+                                <ul className="max-w-[62ch] space-y-2 text-pretty text-[11px] font-normal leading-relaxed text-slate-900">
+                                    {(invoice.notes || []).map((note, index) => (
+                                        <li key={index}>{note}</li>
+                                    ))}
+                                </ul>
+                            </section>
+                        )}
+
+                        <div className="invoice-footer mt-8 grid grid-cols-[3fr_1fr] items-end gap-8 border-t border-slate-200 pt-4">
+                            <div className="max-w-[70ch] text-pretty text-[9px] font-normal leading-relaxed text-slate-900">
+                                <p className="text-balance">
+                                    <span className="font-semibold">Stay amenities:</span> Hot tub heat included. Pool heat is ${COMPANY_CONFIG.stay.poolHeatDailyRate} per day for the full stay.
+                                    {' '}<span className="font-semibold">Cancellation policy:</span>{' '}
+                                    {cancellationNote ? cancellationNote.replace(/^Cancellation policy\s*[—:-]\s*/i, '') : STANDARD_CANCELLATION_POLICY}
+                                </p>
+                            </div>
+                            <p className="text-right text-[9px] font-normal leading-relaxed text-slate-900">{thankYou}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const Invoices: React.FC = () => {
     const { logs, projects, addInvoice, invoices, updateInvoice, deleteInvoice } = useApp();
     const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
@@ -172,11 +418,12 @@ const Invoices: React.FC = () => {
     const [paymentsReceivedNote, setPaymentsReceivedNote] = useState('');
 
     const [showPreview, setShowPreview] = useState(false);
+    const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
     const [bankConfig, setBankConfig] = useState<CompanyBankConfig | null>(null);
     const [bankConfigStatus, setBankConfigStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
 
     React.useEffect(() => {
-        if (!showPreview || bankConfig) return;
+        if ((!showPreview && !viewInvoiceId) || bankConfig) return;
         let active = true;
         setBankConfigStatus('loading');
         fetchCompanyBankConfig()
@@ -190,7 +437,7 @@ const Invoices: React.FC = () => {
                 if (active) setBankConfigStatus('error');
             });
         return () => { active = false; };
-    }, [bankConfig, showPreview]);
+    }, [bankConfig, showPreview, viewInvoiceId]);
     const [showAgreementPreview, setShowAgreementPreview] = useState(false);
     const [emailLoading, setEmailLoading] = useState(false);
     const [emailDraft, setEmailDraft] = useState<string | null>(null);
@@ -397,7 +644,7 @@ const Invoices: React.FC = () => {
         if (paymentTerms === 'DUE_ON_RECEIPT') return 'Due Upon Receipt';
         if (paymentTerms === 'NET_15') return 'Net 15';
         if (paymentTerms === 'NET_30') return 'Net 30';
-        if (paymentTerms === 'CUSTOM') return `Due by ${new Date(customDueDate).toLocaleDateString()}`;
+        if (paymentTerms === 'CUSTOM') return `Due by ${formatDate(customDueDate)}`;
         return 'Due Upon Receipt';
     };
 
@@ -577,8 +824,8 @@ const Invoices: React.FC = () => {
             });
         }
 
-        // Determine status
-        let status: 'PAID' | 'PARTIAL' | 'SENT' = 'SENT';
+        // Determine status — unpaid invoices start as DRAFT until marked sent
+        let status: 'PAID' | 'PARTIAL' | 'SENT' | 'DRAFT' = 'DRAFT';
         if (initialPayment >= totals.total - 0.01) {
             status = 'PAID';
         } else if (initialPayment > 0) {
@@ -1161,12 +1408,22 @@ Jessica`;
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 text-center">
-                                                <span className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider
-                                                    ${isPaid ? 'bg-emerald-100 text-emerald-700' :
-                                                        invoice.status === 'PARTIAL' ? 'bg-amber-100 text-amber-700' :
-                                                            'bg-slate-100 text-slate-600'}`}>
-                                                    {invoice.status}
-                                                </span>
+                                                {isPaid || invoice.status === 'PARTIAL' ? (
+                                                    <span className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider
+                                                        ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                        {invoice.status}
+                                                    </span>
+                                                ) : (
+                                                    <select
+                                                        value={invoice.status}
+                                                        onChange={(e) => updateInvoice(invoice.id, { status: e.target.value as Invoice['status'] })}
+                                                        className="text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider bg-slate-100 text-slate-600 border-0 cursor-pointer appearance-none text-center"
+                                                        title="Change status"
+                                                    >
+                                                        <option value="DRAFT">DRAFT</option>
+                                                        <option value="SENT">SENT</option>
+                                                    </select>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4 text-right flex justify-end gap-2">
                                                 {!isPaid && (
@@ -1180,6 +1437,13 @@ Jessica`;
                                                         <PlusCircle size={14} weight="bold" /> Pay
                                                     </button>
                                                 )}
+                                                <button
+                                                    onClick={() => setViewInvoiceId(invoice.id)}
+                                                    className="text-slate-400 hover:text-slate-900 p-1.5"
+                                                    title="View Invoice"
+                                                >
+                                                    <FileText size={18} weight="duotone" />
+                                                </button>
                                                 <button
                                                     onClick={() => handleSendEmail(invoice)}
                                                     className="text-slate-400 hover:text-slate-900 p-1.5"
@@ -1617,16 +1881,12 @@ Jessica`;
                                         <div className="max-w-[70ch] text-pretty text-[9px] font-normal leading-relaxed text-slate-900">
                                             <p className="text-balance">
                                                 <span className="font-semibold">Stay amenities:</span> Hot tub heat included. Pool heat is ${COMPANY_CONFIG.stay.poolHeatDailyRate} per day for the full stay.
-                                                {cancellationPolicyLogs.length > 0 && (
-                                                    <>
-                                                        {' '}<span className="font-semibold">Cancellation policy:</span>{' '}
-                                                        {cancellationPolicyLogs.map(log => (
-                                                            <React.Fragment key={log.id}>
-                                                                {log.description.replace(/^Cancellation policy\s*[—:-]\s*/i, '')}
-                                                            </React.Fragment>
-                                                        ))}
-                                                    </>
-                                                )}
+                                                {' '}<span className="font-semibold">Cancellation policy:</span>{' '}
+                                                {cancellationPolicyLogs.length > 0 ? cancellationPolicyLogs.map(log => (
+                                                    <React.Fragment key={log.id}>
+                                                        {log.description.replace(/^Cancellation policy\s*[—:-]\s*/i, '')}
+                                                    </React.Fragment>
+                                                )) : STANDARD_CANCELLATION_POLICY}
                                             </p>
                                         </div>
                                         <p className="text-right text-[9px] font-normal leading-relaxed text-slate-900">
@@ -1690,6 +1950,21 @@ Jessica`;
                     </div>
                 )
             }
+
+            {viewInvoiceId && (() => {
+                const invoiceToView = invoices.find(i => i.id === viewInvoiceId);
+                if (!invoiceToView) return null;
+                const guestProject = projects.find(p => p.name === invoiceToView.clientId || p.client === invoiceToView.clientId);
+                return (
+                    <SavedInvoiceModal
+                        invoice={invoiceToView}
+                        guest={guestProject}
+                        bankConfig={bankConfig}
+                        bankConfigStatus={bankConfigStatus}
+                        onClose={() => setViewInvoiceId(null)}
+                    />
+                );
+            })()}
 
             {/* Rental Agreement Modal Preview */}
             {showAgreementPreview && longStayAgreement && (
