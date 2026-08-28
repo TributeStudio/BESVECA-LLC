@@ -376,14 +376,14 @@ const SavedInvoiceModal = ({ invoice, guest, bankConfig, bankConfigStatus, onClo
                             </section>
                         )}
 
-                        <div className="invoice-footer mt-8 grid grid-cols-[3fr_1fr] items-end gap-8 border-t border-slate-200 pt-4">
+                        <div className="invoice-footer mt-8 grid grid-cols-[1fr_auto] items-end gap-8 border-t border-slate-200 pt-4">
                             <div className="max-w-[70ch] text-pretty text-[9px] font-normal leading-relaxed text-slate-900">
                                 <p className="text-balance">
                                     <span className="font-semibold">Cancellation policy:</span>{' '}
                                     {cancellationNote ? cancellationNote.replace(/^Cancellation policy\s*[—:-]\s*/i, '') : STANDARD_CANCELLATION_POLICY}
                                 </p>
                             </div>
-                            <p className="text-right text-[9px] font-normal leading-relaxed text-slate-900">{thankYou}</p>
+                            <p className="whitespace-nowrap text-right text-[9px] font-normal leading-relaxed text-slate-900">{thankYou}</p>
                         </div>
                     </div>
                 </div>
@@ -1876,7 +1876,7 @@ Jessica`;
                                     )}
 
                                     {/* Footer */}
-                                    <div className="invoice-footer mt-8 grid grid-cols-[3fr_1fr] items-end gap-8 border-t border-slate-200 pt-4">
+                                    <div className="invoice-footer mt-8 grid grid-cols-[1fr_auto] items-end gap-8 border-t border-slate-200 pt-4">
                                         <div className="max-w-[70ch] text-pretty text-[9px] font-normal leading-relaxed text-slate-900">
                                             <p className="text-balance">
                                                 <span className="font-semibold">Cancellation policy:</span>{' '}
@@ -1887,7 +1887,7 @@ Jessica`;
                                                 )) : STANDARD_CANCELLATION_POLICY}
                                             </p>
                                         </div>
-                                        <p className="text-right text-[9px] font-normal leading-relaxed text-slate-900">
+                                        <p className="whitespace-nowrap text-right text-[9px] font-normal leading-relaxed text-slate-900">
                                             {(() => {
                                                 const proj = projects.find(p => p.name === selectedClientId || p.client === selectedClientId);
                                                 const prop = proj?.client;
