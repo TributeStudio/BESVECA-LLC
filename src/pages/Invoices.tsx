@@ -379,8 +379,7 @@ const SavedInvoiceModal = ({ invoice, guest, bankConfig, bankConfigStatus, onClo
                         <div className="invoice-footer mt-8 grid grid-cols-[3fr_1fr] items-end gap-8 border-t border-slate-200 pt-4">
                             <div className="max-w-[70ch] text-pretty text-[9px] font-normal leading-relaxed text-slate-900">
                                 <p className="text-balance">
-                                    <span className="font-semibold">Stay amenities:</span> Hot tub heat included. Pool heat is ${COMPANY_CONFIG.stay.poolHeatDailyRate} per day for the full stay.
-                                    {' '}<span className="font-semibold">Cancellation policy:</span>{' '}
+                                    <span className="font-semibold">Cancellation policy:</span>{' '}
                                     {cancellationNote ? cancellationNote.replace(/^Cancellation policy\s*[—:-]\s*/i, '') : STANDARD_CANCELLATION_POLICY}
                                 </p>
                             </div>
@@ -1880,8 +1879,7 @@ Jessica`;
                                     <div className="invoice-footer mt-8 grid grid-cols-[3fr_1fr] items-end gap-8 border-t border-slate-200 pt-4">
                                         <div className="max-w-[70ch] text-pretty text-[9px] font-normal leading-relaxed text-slate-900">
                                             <p className="text-balance">
-                                                <span className="font-semibold">Stay amenities:</span> Hot tub heat included. Pool heat is ${COMPANY_CONFIG.stay.poolHeatDailyRate} per day for the full stay.
-                                                {' '}<span className="font-semibold">Cancellation policy:</span>{' '}
+                                                <span className="font-semibold">Cancellation policy:</span>{' '}
                                                 {cancellationPolicyLogs.length > 0 ? cancellationPolicyLogs.map(log => (
                                                     <React.Fragment key={log.id}>
                                                         {log.description.replace(/^Cancellation policy\s*[—:-]\s*/i, '')}
